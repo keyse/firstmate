@@ -919,8 +919,10 @@ test_completed_scout_report_is_pointer_not_pending() {
       and .hints.scout_report_present == true
   ' >/dev/null || fail "a completed scout report must be a pointer, not a pending decision: $out"
 
-  # Same terminal-supersession contract across ship/scout/secondmate, both snapshot
-  # modes, and reopen/resolve after cleanup.
+  # A keyed decision still open when a ship, scout, or secondmate finishes stays
+  # open in both snapshot modes until its own key is closed, even after cleanup;
+  # only the current state differs, because a single-owner task's terminal line
+  # ends its work.
   home=$(make_home terminal-cleanup)
   mkdir -p "$home/projects/task"
   fakebin=$(make_fakebin "$home")
@@ -937,9 +939,9 @@ test_completed_scout_report_is_pointer_not_pending() {
   done
   for phase in terminal reopened resolved; do
     case "$phase" in
-      terminal) single='[]'; mate='["access","choice"]'; single_state=unknown; mate_state=parked ;;
-      reopened) single='["access","new-choice"]'; mate='["access","choice","new-choice"]'; single_state=parked; mate_state=parked ;;
-      resolved) single='[]'; mate='["choice"]'; single_state=unknown; mate_state=parked ;;
+      terminal) single='["access","choice"]'; mate=$single; single_state=unknown; mate_state=parked ;;
+      reopened) single='["access","choice","new-choice"]'; mate=$single; single_state=parked; mate_state=parked ;;
+      resolved) single='["choice"]'; mate=$single; single_state=unknown; mate_state=parked ;;
     esac
     for kind in ship scout secondmate; do
       for terminal in 'done' failed; do
@@ -959,15 +961,15 @@ test_completed_scout_report_is_pointer_not_pending() {
           and .current_state.state == (if $persistent then $mate_state else $single_state end)
           and .hints.blocked_event == (if $persistent then $mate else $single end | index("access") != null)
           and .hints.pending_decision == (if $persistent then $mate else $single end | any(. != "access")))
-    ' >/dev/null || fail "$phase snapshot revived a completed decision or lost a current one: $out"
+    ' >/dev/null || fail "$phase snapshot dropped an unanswered decision or kept a closed one: $out"
     out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
     printf '%s' "$out" | jq -e --argjson single "$single" --argjson mate "$mate" '
       (.decisions_open | map({id,key}) | sort_by(.id,.key)) ==
         (([ ("ship-done","ship-failed","scout-done","scout-failed") as $id | $single[] | {id:$id,key:.} ]
           + [ ("secondmate-done","secondmate-failed") as $id | $mate[] | {id:$id,key:.} ]) | sort_by(.id,.key))
-    ' >/dev/null || fail "$phase home summary revived a completed decision or lost a current one: $out"
+    ' >/dev/null || fail "$phase home summary dropped an unanswered decision or kept a closed one: $out"
   done
-  pass "a completed scout's stale decision surfaces as a report pointer, not pending"
+  pass "a completed scout's report is a pointer while unanswered keyed decisions outlive every terminal line"
 }
 
 # The complementary safety property: a scout still PARKED at a decision (its last
