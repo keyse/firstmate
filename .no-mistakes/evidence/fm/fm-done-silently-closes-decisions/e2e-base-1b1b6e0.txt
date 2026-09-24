@@ -1,0 +1,54 @@
+######## [base] code root: /tmp/fmbase.txjj
+=== status log
+working: pinning claude-code
+needs-decision [key=nm-01M38NPKKB7XAK5R6ARXEJQCXB-ci-nochecks]: repo has no CI checks; merge anyway?
+working: finishing the pin
+done: PR checks green
+
+=== 1. wake drain after needs-decision then done:
+>> NO OPEN DECISIONS section
+
+=== 2. fleet snapshot --json (task hints)
+{"id":"dotfiles-pin-claude-code","current_state":"unknown","source":"pane","pending_decision":false,"open_decisions":[]}
+=== 2b. --secondmate-home-summary decisions_open
+[]
+=== 2c. fleet view (human renderer)
+# Fleet View
+
+Schema: fm-fleet-snapshot.v1
+Home: /tmp/fm-e2e-base.XxEG/home
+
+## Under Way
+| ID | Current | Kind | Repo/Project | Backend | Endpoint | Artifact | Path | Watch / return channel |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| dotfiles-pin-claude-code | unknown / pane | ship | dotfiles | tmux | present | - | /tmp/fm-e2e-base.XxEG/home/projects/pin-wt | bin/fm-peek.sh fm-dotfiles-pin-claude-code |
+
+## Queued
+No queued backlog records found.
+
+## Done
+No done backlog records found.
+
+## Secondmates
+For kind=secondmate, bearings selects validated structured state from that registered home; parent events and bounded terminal evidence are fallback-only supplements and never current-state authority.
+
+=== 3. mistyped key refused
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: --resolve-key 'nm-typo': no open decision or blocker with that key in /tmp/fm-e2e-base.XxEG/home/state/dotfiles-pin-claude-code.status, and no captain-held task 'nm-typo' or 'dotfiles-pin-claude-code-decision-nm-typo' still open (already closed or mistyped). Re-check the OPEN DECISIONS listing, then resend without that key or with the right one; nothing was sent.
+rc=1
+
+=== 4. fm-send --resolve-key nm-01M38NPKKB7XAK5R6ARXEJQCXB-ci-nochecks
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: --resolve-key 'nm-01M38NPKKB7XAK5R6ARXEJQCXB-ci-nochecks': no open decision or blocker with that key in /tmp/fm-e2e-base.XxEG/home/state/dotfiles-pin-claude-code.status, and no captain-held task 'nm-01M38NPKKB7XAK5R6ARXEJQCXB-ci-nochecks' or 'dotfiles-pin-claude-code-decision-nm-01M38NPKKB7XAK5R6ARXEJQCXB-ci-nochecks' still open (already closed or mistyped). Re-check the OPEN DECISIONS listing, then resend without that key or with the right one; nothing was sent.
+rc=1
+--- status log tail
+working: finishing the pin
+done: PR checks green
+--- drain after answer
+>> NO OPEN DECISIONS section
+{"current_state":"unknown","pending_decision":false,"open_decisions":[]}
+
+=== 5. re-answer the now-closed key is refused
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: --resolve-key 'nm-01M38NPKKB7XAK5R6ARXEJQCXB-ci-nochecks': no open decision or blocker with that key in /tmp/fm-e2e-base.XxEG/home/state/dotfiles-pin-claude-code.status, and no captain-held task 'nm-01M38NPKKB7XAK5R6ARXEJQCXB-ci-nochecks' or 'dotfiles-pin-claude-code-decision-nm-01M38NPKKB7XAK5R6ARXEJQCXB-ci-nochecks' still open (already closed or mistyped). Re-check the OPEN DECISIONS listing, then resend without that key or with the right one; nothing was sent.
+rc=1

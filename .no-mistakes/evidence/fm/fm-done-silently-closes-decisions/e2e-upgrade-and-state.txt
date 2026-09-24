@@ -1,0 +1,23 @@
+=== A. base drain (persists its fold cursor)
+>> base: no OPEN DECISIONS
+--- cursor files:
+.status-presentation-cursor
+.t1.open-decisions-cursor
+[.status-presentation-cursor]
+t1	strong:16777230:131651812:1790226961.273658291	0	74
+[.t1.open-decisions-cursor]
+version=8:ship
+offset=74
+ident=strong:16777230:131651812:1790226961.273658291
+--- head drain on the same home (upgrade):
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+t1 [key=ci-nochecks] needs-decision: merge without CI?
+
+=== B1. crew state of a finished ship holding an older open decision
+state: done · source: status-log · PR checks green
+=== B2. a later working: line does not close the decision
+t1 [key=ci-nochecks] needs-decision: merge without CI?
+=== B3. decision opened AFTER done: becomes current state
+state: parked · source: status-log · re-open the PR?
+t1 [key=ci-nochecks] needs-decision: merge without CI?
+t1 [key=post-done] needs-decision: re-open the PR?
