@@ -17,6 +17,8 @@ make_fakebin() {  # <dir>
   fb=$(fm_fakebin "$1")
   cat > "$fb/no-mistakes" <<'SH'
 #!/usr/bin/env bash
+run="${FM_HOME:?}/nm-runs/${PWD##*/}"
+[ "${1:-}" = axi ] && [ -f "$run" ] && cat "$run"
 exit 0
 SH
   cat > "$fb/tmux" <<'SH'
@@ -989,6 +991,57 @@ test_completed_scout_report_is_pointer_not_pending() {
   pass "a completed scout's report is a pointer while unanswered keyed decisions outlive every terminal line"
 }
 
+# A ship's run-step read decides whether its unanswered keyed decision surfaces:
+# only a run showing the crew working clears it, while a completed run (done) or
+# an unreadable outcome (unknown) keeps it open in the task hints and the
+# home-summary rollup.
+test_run_step_state_decides_open_decision_clearing() {
+  local home fakebin out id outcome head last
+  home=$(make_home run-step-decisions)
+  mkdir -p "$home/nm-runs"
+  for id in run-done run-unknown run-working; do
+    fm_git_init_commit "$home/projects/$id" >/dev/null
+    git -C "$home/projects/$id" checkout -q -b "fm/$id"
+    head=$(git -C "$home/projects/$id" rev-parse HEAD)
+    fm_write_meta "$home/state/$id.meta" \
+      "window=firstmate:fm-$id" "worktree=$home/projects/$id" \
+      "project=firstmate" "harness=claude" "kind=ship" "mode=no-mistakes"
+    record_claude_idle "$home/state" "$id"
+    case "$id" in
+      run-done) outcome=$'status: completed\n  pr: ""\noutcome: checks-passed'; last='done: PR checks green' ;;
+      run-unknown) outcome=$'status: completed\n  pr: ""\noutcome: mystery'; last='done: PR checks green' ;;
+      run-working) outcome=$'status: running\n  pr: ""'; last='working: validating the pin' ;;
+    esac
+    printf 'needs-decision [key=ci-nochecks]: repo has no CI checks, merge anyway?\n%s\n' "$last" \
+      > "$home/state/$id.status"
+    printf 'run:\n  id: "01RUN%s"\n  branch: fm/%s\n  head: "%s"\n  findings: none\n  %s\n' \
+      "$id" "$id" "$head" "$outcome" > "$home/nm-runs/$id"
+  done
+  fakebin=$(make_fakebin "$home")
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --json)
+  printf '%s' "$out" | jq -e '
+    .tasks as $tasks
+    | [ "run-done", "run-unknown", "run-working" ]
+    | map(. as $id | $tasks[] | select(.id == $id) | .current_state | [.state, .source])
+      == [["done","run-step"],["unknown","run-step"],["working","run-step"]]
+  ' >/dev/null || fail "run-step fixtures must read done, unknown, and working from the run: $out"
+  printf '%s' "$out" | jq -e '
+    . as $root
+    | def task($id): ($root.tasks[] | select(.id == $id));
+    all(("run-done","run-unknown"); task(.)
+        | .hints.pending_decision == true
+          and (.hints.open_decisions | map(.key)) == ["ci-nochecks"])
+      and task("run-working").hints.pending_decision == false
+      and (task("run-working").hints.open_decisions | length) == 0
+  ' >/dev/null || fail "only a working run-step read may clear an unanswered decision: $out"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    (.decisions_open | map({id,key}) | sort_by(.id)) ==
+      [{id:"run-done",key:"ci-nochecks"},{id:"run-unknown",key:"ci-nochecks"}]
+  ' >/dev/null || fail "home summary must keep a done or unknown run's unanswered decision: $out"
+  pass "only a working run-step read clears an unanswered decision"
+}
+
 # The complementary safety property: a scout still PARKED at a decision (its last
 # event is the needs-decision, it has not finished) DOES stay pending.
 test_parked_scout_decision_stays_pending() {
@@ -1125,6 +1178,7 @@ test_secondmate_open_decision_survives_live_endpoint
 test_open_decision_transfers_to_captain_hold
 test_open_decision_clears_on_keyed_resolution
 test_completed_scout_report_is_pointer_not_pending
+test_run_step_state_decides_open_decision_clearing
 test_parked_scout_decision_stays_pending
 test_scout_reports_include_teardown_reports
 test_backlog_tasks_axi_forms_and_overrides

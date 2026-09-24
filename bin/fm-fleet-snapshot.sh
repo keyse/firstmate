@@ -785,14 +785,16 @@ task_json_lines() {
 
     # Durable keyed open-decision set: status_open_decisions (fm-classify-lib.sh)
     # owns which status lines open and close a decision. The snapshot clears that
-    # set only when a live run-step or pane activity read on a non-secondmate task
-    # is neither parked nor blocked, so a crew that resumed past a gate is not
-    # still reported as parked. Secondmates multiplex many concerns onto one
-    # stream, so their activity never clears the set.
+    # set only when a live run-step or pane read shows a non-secondmate crew
+    # working, so a crew that resumed past a gate is not still reported as parked.
+    # Every other read - done, failed, unknown, parked, blocked, or a status-log
+    # or none source - keeps the fold's decisions surfacing. Secondmates
+    # multiplex many concerns onto one stream, so their activity never clears
+    # the set.
     open_decisions_tsv=$(status_open_decisions "$status_log")
     if [ "$kind" != secondmate ] && \
        { [ "$current_source" = run-step ] || [ "$current_source" = pane ]; } && \
-       [ "$current_state" != parked ] && [ "$current_state" != blocked ]; then
+       [ "$current_state" = working ]; then
       open_decisions_tsv=""
     fi
     open_decisions_json=$(printf '%s' "$open_decisions_tsv" | jq -R -s '
