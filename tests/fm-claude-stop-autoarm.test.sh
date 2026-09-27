@@ -162,6 +162,20 @@ printf 'watcher: FAILED - no live watcher with a fresh beacon\n'
 exit 1
 SH
       ;;
+    released-actionable)
+      cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
+#!/usr/bin/env bash
+echo "$$" >> "$FM_HOME/state/arm-ran"
+touch "$FM_HOME/state/.last-watcher-beat"
+i=0
+while [ ! -e "$FM_HOME/state/arm-release" ] && [ "$i" -lt 1500 ]; do sleep 0.02; i=$((i + 1)); done
+printf 'pending:downtime:fixture-generation\n' > "$FM_HOME/state/.watcher-down"
+touch "$FM_HOME/state/.last-watcher-beat"
+printf 'watcher: attached pid=%s (beacon fresh)\n' "$$"
+printf 'signal: task.status done: fixture\n'
+exit 0
+SH
+      ;;
     meta-vanishes)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
@@ -1178,6 +1192,80 @@ test_superseded_owner_goes_silent_and_never_double_translates() {
   pass "auto-arm: a superseded owner goes silent - one supersession episode, one translation, no held mutex"
 }
 
+# A session restart while the previous session's hook still holds a live
+# arming claim (a Claude session that outlives /exit in a background host): the
+# old session's lock anchor dies and a new session takes the lock. The old
+# claim can never translate a wake for the new lock owner, so the new session's
+# Stop must take the next generation instead of deferring to it, and the old
+# owner must go silent when the shared watcher closes.
+test_restarted_session_supersedes_orphaned_claim() {
+  local dir a_out a_anchor a_hook a_lines b_out b_pid b_status i
+  dir=$(make_primary_dir "$TMP_ROOT/v2-restarted-session")
+  : > "$dir/state/task1.meta"
+  write_arm_fixture "$dir" released-actionable
+  a_out="$dir/state/a.out"
+  # Each fake harness stays alive as its hook's parent (a trailing command
+  # keeps bash from exec-ing the hook), so session A's anchor can die alone.
+  printf '%s\n' '{"session_id":"sess-a","stop_hook_active":false}' \
+    | FM_HOME="$dir" "$FAKE_CLAUDE" -c '
+        printf "%s\n" "$$" > "$FM_HOME/state/.lock"
+        "$FM_HOME/bin/fm-claude-stop-autoarm.sh"
+        :
+      ' > "$a_out" 2>&1 &
+  a_anchor=$!
+  i=0
+  while [ "$(epoch_outcome "$dir")" != arming ] || [ ! -e "$dir/state/arm-ran" ]; do
+    [ "$i" -lt 50 ] || fail "session A's hook never published its arming claim"
+    sleep 0.1
+    i=$((i + 1))
+  done
+  a_hook=$(epoch_field "$dir" owner_pid)
+  [ "$(epoch_field "$dir" session_pid)" = "$a_anchor" ] \
+    || fail "the arming claim must bind session A's lock pid, got: $(epoch_field "$dir" session_pid)"
+  # Restart: A's lock anchor dies while its hook keeps parking on the watcher.
+  kill -9 "$a_anchor" 2>/dev/null || true
+  wait "$a_anchor" 2>/dev/null || true
+  kill -0 "$a_hook" 2>/dev/null || fail "session A's hook must outlive its anchor for this case"
+  # Session B's Stop reclaims the dead lock through fm-lock.sh.
+  b_out="$dir/state/b.out"
+  printf '%s\n' '{"session_id":"sess-b","stop_hook_active":false}' \
+    | FM_HOME="$dir" "$FAKE_CLAUDE" -c '
+        printf "%s\n" "$$" > "$FM_HOME/state/b-anchor"
+        "$FM_HOME/bin/fm-claude-stop-autoarm.sh"
+        exit "$?"
+      ' > "$b_out" 2>&1 &
+  b_pid=$!
+  i=0
+  while [ "$(epoch_field "$dir" epoch)" != 2 ]; do
+    if ! kill -0 "$b_pid" 2>/dev/null; then
+      wait "$b_pid"
+      fail "session B's Stop deferred to the orphaned claim instead of taking the next generation (rc=$?)"
+    fi
+    [ "$i" -lt 50 ] || fail "session B never took the next generation"
+    sleep 0.1
+    i=$((i + 1))
+  done
+  [ "$(cat "$dir/state/.lock")" = "$(cat "$dir/state/b-anchor")" ] \
+    || fail "session B did not take the session lock"
+  : > "$dir/state/arm-release"
+  wait "$b_pid"
+  b_status=$?
+  i=0
+  while kill -0 "$a_hook" 2>/dev/null; do
+    [ "$i" -lt 50 ] || fail "session A's hook never finished after the watcher closed"
+    sleep 0.1
+    i=$((i + 1))
+  done
+  expect_code 2 "$b_status" "the new session must translate the shared watcher's close"
+  assert_contains "$(cat "$b_out")" "firstmate watcher wake" "the new session must carry the rewake banner"
+  a_lines=$(grep -c . "$a_out" || true)
+  [ "$a_lines" -eq 0 ] || fail "the orphaned owner emitted output after losing its generation: $(cat "$a_out")"
+  [ "$(epoch_field "$dir" epoch)" = 2 ] || fail "the orphaned owner rewrote the ledger: $(epoch_field "$dir" epoch)"
+  [ "$(epoch_field "$dir" owner_pid)" != "$a_hook" ] || fail "the orphaned owner is still on the ledger"
+  [ "$(epoch_outcome "$dir")" = rewake ] || fail "the new session's rewake outcome was overwritten: $(epoch_outcome "$dir")"
+  pass "auto-arm: a restarted session supersedes the previous session's orphaned claim and receives the wake"
+}
+
 test_need_vanished_mid_cycle_closes_quietly() {
   local dir out status
   dir=$(make_primary_dir "$TMP_ROOT/vanished")
@@ -1270,6 +1358,7 @@ test_stuck_generation_claim_is_superseded_and_rearms
 test_identityless_ledger_never_defers
 test_superseded_owner_never_reinvokes_the_arm
 test_superseded_owner_goes_silent_and_never_double_translates
+test_restarted_session_supersedes_orphaned_claim
 test_need_vanished_mid_cycle_closes_quietly
 test_afk_mid_cycle_suppresses_rewake
 test_active_in_marked_secondmate_home

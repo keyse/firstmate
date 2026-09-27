@@ -1503,12 +1503,16 @@ fm_autoarm_ledger_read() {  # <state-dir>
 # True while the CURRENT ledger claim is open and healthy - the defer predicate
 # both Stop participants use. Open means: outcome "arming", a live owner whose
 # mandatory recorded identity recomputes and matches its pid, and not stuck
-# (the contract comment above owns the stuck proof). fm_path_age reports an
-# absent beacon as ancient, which is exactly right: arming for a full grace
-# window without producing a first beat is the same hang. An identityless
-# entry is never open: real generation claims always record identity, a legacy
-# build's entry gets its deference from its held role-carrying lock through
-# the legacy shim, and anything else must not defer.
+# (the contract comment above owns the stuck proof), and not orphaned by a
+# session restart: a claim whose recorded session_pid is dead and no longer the
+# session-lock pid belongs to a session that can never rewake the current lock
+# owner (its rewake commit requires the lock), so deferring to it would strand
+# the new owner's wakes. A claim without session_pid keeps the legacy rule.
+# fm_path_age reports an absent beacon as ancient, which is exactly right:
+# arming for a full grace window without producing a first beat is the same
+# hang. An identityless entry is never open: real generation claims always
+# record identity, a legacy build's entry gets its deference from its held
+# role-carrying lock through the legacy shim, and anything else must not defer.
 fm_autoarm_claim_open() {  # <state-dir> [grace]
   local state=$1 grace=${2:-${FM_GUARD_GRACE:-300}} epoch current
   epoch="$state/.claude-autoarm-epoch"
@@ -1517,6 +1521,11 @@ fm_autoarm_claim_open() {  # <state-dir> [grace]
   esac
   fm_autoarm_ledger_read "$state" || return 1
   [ "$FM_AUTOARM_OUTCOME" = arming ] || return 1
+  if [ -n "$FM_AUTOARM_SESSION" ] \
+    && [ "$FM_AUTOARM_SESSION" != "$(sed -n '1p' "$state/.lock" 2>/dev/null)" ] \
+    && ! fm_pid_alive "$FM_AUTOARM_SESSION"; then
+    return 1
+  fi
   fm_pid_alive "$FM_AUTOARM_OWNER" || return 1
   [ -n "$FM_AUTOARM_IDENTITY" ] || return 1
   current=$(fm_pid_identity "$FM_AUTOARM_OWNER" 2>/dev/null) || return 1
@@ -1569,7 +1578,7 @@ fm_autoarm_midturn_healthy() {  # <state-dir> [grace]
 # 1 when the micro-mutex is contended, the mandatory identity cannot be
 # computed, or the write failed.
 fm_autoarm_claim_next() {  # <state-dir> [grace]
-  local state=$1 grace=${2:-${FM_GUARD_GRACE:-300}} lock epoch pid gen identity tmp
+  local state=$1 grace=${2:-${FM_GUARD_GRACE:-300}} lock epoch pid gen identity session tmp
   lock="$state/.claude-autoarm.lock"
   epoch="$state/.claude-autoarm-epoch"
   FM_AUTOARM_MY_GEN=
@@ -1589,9 +1598,11 @@ fm_autoarm_claim_next() {  # <state-dir> [grace]
     ''|*[!0-9]*) gen=0 ;;
   esac
   gen=$((gen + 1))
+  session=$(sed -n '1p' "$state/.lock" 2>/dev/null || true)
+  case "$session" in ''|*[!0-9]*) session= ;; esac
   tmp="$epoch.tmp.$pid"
-  if ! printf 'epoch=%s owner_pid=%s outcome=arming updated_at=%s\n%s\n' \
-      "$gen" "$pid" "$(date +%s)" "$identity" > "$tmp" 2>/dev/null \
+  if ! printf 'epoch=%s owner_pid=%s outcome=arming updated_at=%s%s\n%s\n' \
+      "$gen" "$pid" "$(date +%s)" "${session:+ session_pid=$session}" "$identity" > "$tmp" 2>/dev/null \
     || ! mv -f "$tmp" "$epoch" 2>/dev/null; then
     rm -f "$tmp" 2>/dev/null || true
     fm_lock_release "$lock"
