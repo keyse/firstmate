@@ -1391,9 +1391,11 @@ fm_failure_episode_reset() {
 # generation. This is an optimistic, generation-based single-flight design:
 #
 #   - The CURRENT claim is the ledger's latest entry: line 1 begins with the
-#     "epoch=N owner_pid=P outcome=O updated_at=T" record. A "rewake" outcome
-#     also records "session_pid=S recovery_generation=G", binding that
-#     handling turn to its live session-lock owner and watcher recovery episode.
+#     "epoch=N owner_pid=P outcome=O updated_at=T" record. An "arming" claim
+#     also records "session_pid=S", the session-lock pid it was made under
+#     (omitted when the lock is unreadable). A "rewake" outcome records
+#     "session_pid=S recovery_generation=G", binding that handling turn to its
+#     live session-lock owner and watcher recovery episode.
 #     Line 2 is the claiming process's pid-identity, the same identity every other
 #     supervision lock in this repo records (fm_pid_identity above). The
 #     identity is MANDATORY: a claimant that cannot record it does not claim
@@ -1406,12 +1408,15 @@ fm_failure_episode_reset() {
 #     ledger entry and the watcher beacon (state/.last-watcher-beat) are older
 #     than the guard grace, which proves the owner hung mid-arm with nothing
 #     supervising (every legitimate arming phase with no watcher is bounded in
-#     seconds, while a healthy hours-long cycle keeps the beacon beating).
+#     seconds, while a healthy hours-long cycle keeps the beacon beating),
+#     and not ORPHANED - its recorded session_pid is dead and no longer the
+#     session-lock pid (a claim without session_pid is never orphaned).
 #   - Every firing DEFERS (exits 0) to an open claim; anything else - a
 #     terminal outcome, a dead or identity-mismatched owner, a stuck owner, an
-#     identityless entry, or no claim at all - lets the next firing take
-#     generation N+1 (fm_autoarm_claim_next). Taking a newer generation IS the
-#     reclaim: a steady-state predecessor is never signalled or revoked.
+#     orphaned claim, an identityless entry, or no claim at all - lets the
+#     next firing take generation N+1 (fm_autoarm_claim_next). Taking a newer
+#     generation IS the reclaim: a steady-state predecessor is never signalled
+#     or revoked.
 #   - NO mutex is ever held across a blocking step. The owner lock
 #     state/.claude-autoarm.lock survives only as a micro-mutex serializing
 #     individual ledger reads-then-writes (a few non-blocking file
