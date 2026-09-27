@@ -1,0 +1,4 @@
+legacy claim (no session_pid), lock held by other session              -> open/defer
+session_pid dead, != lock pid (orphaned by restart)                    -> not-open/take-next-gen
+session_pid dead but == lock pid (same session)                        -> open/defer
+session_pid alive, != lock pid (firing pid in lock)                    -> open/defer
