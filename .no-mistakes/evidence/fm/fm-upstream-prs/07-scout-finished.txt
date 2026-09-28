@@ -1,0 +1,11 @@
+===== finished scout t2 with herdr endpoint + idle busy record =====
+--- /tmp/fmbase.HZ4R:BASE-3d14792
+$ fm-crew-state.sh t2
+state: done · source: status-log · report ready at data/t2/report.md
+$ fm-fleet-snapshot.sh --json (t2)
+{"state":"state: done · source: status-log · report ready at data/t2/report.md","open_decisions":[],"scout_report_present":true}
+--- worktree:TARGET-6f3cdf3
+$ fm-crew-state.sh t2
+state: done · source: status-log · report ready at data/t2/report.md
+$ fm-fleet-snapshot.sh --json (t2)
+{"state":"state: done · source: status-log · report ready at data/t2/report.md","open_decisions":[{"key":"scope","verb":"needs-decision","summary":"include the legacy module in the survey?"}],"scout_report_present":true}

@@ -1,0 +1,35 @@
+===== BASE-3d14792: finished ship t1 (idle pane, done: line after an unanswered keyed decision) =====
+$ fm-crew-state.sh t1
+state: done · source: status-log · PR opened https://example.invalid/pr/1
+
+$ fm-fleet-snapshot.sh --json | jq '.tasks[]|select(.id=="t1")|{current_state:.current_state.raw,hints}'
+{
+  "current_state": "state: done · source: status-log · PR opened https://example.invalid/pr/1",
+  "hints": {
+    "pending_decision": false,
+    "blocked_event": false,
+    "open_decisions": [],
+    "scout_report_present": false,
+    "last_event_text": "done: PR opened https://example.invalid/pr/1"
+  }
+}
+
+$ fm-fleet-view.sh
+# Fleet View
+
+Schema: fm-fleet-snapshot.v1
+Home: /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx
+
+## Under Way
+| ID | Current | Kind | Repo/Project | Backend | Endpoint | Artifact | Path | Watch / return channel |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| t1 | done / status-log | ship | - | herdr | present | - | /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx/projects/t1-wt | bin/fm-peek.sh fm-t1 |
+
+## Queued
+No queued backlog records found.
+
+## Done
+No done backlog records found.
+
+## Secondmates
+For kind=secondmate, bearings selects validated structured state from that registered home; parent events and bounded terminal evidence are fallback-only supplements and never current-state authority.

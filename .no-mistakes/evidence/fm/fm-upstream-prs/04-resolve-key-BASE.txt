@@ -1,0 +1,9 @@
+===== BASE 3d14792: answer the still-unanswered decision after the ship's done: line =====
+$ fm-send.sh t1 --resolve-key api-shape 'Use REST.'
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: --resolve-key 'api-shape': no open decision or blocker with that key in /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx/state/t1.status, and no captain-held task 'api-shape' or 't1-decision-api-shape' still open (already closed or mistyped). Re-check the OPEN DECISIONS listing, then resend without that key or with the right one; nothing was sent.
+exit=1
+$ tail -2 state/t1.status
+working: continuing with REST as the provisional default
+done: PR opened https://example.invalid/pr/1

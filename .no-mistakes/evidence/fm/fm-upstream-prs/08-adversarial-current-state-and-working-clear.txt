@@ -1,0 +1,16 @@
+===== TARGET: decision raised AFTER a scout's done: line becomes its current state =====
+needs-decision [key=scope]: include the legacy module in the survey?
+done: report ready at data/t2/report.md
+needs-decision [key=followup]: open a follow-up ship for the legacy module?
+$ fm-crew-state.sh t2
+state: parked · source: status-log · open a follow-up ship for the legacy module?
+$ fm-fleet-snapshot.sh --json (t2)
+{"state":"state: parked · source: status-log · open a follow-up ship for the legacy module?","open_decisions":["scope","followup"]}
+
+===== TARGET: ship t1 raises a new decision, then a live busy record shows it working again -> snapshot clears (lifecycle clear kept) =====
+idle pane:
+{"state":"state: parked · source: status-log · retry the flaky upload step?","open_decisions":["retry"]}
+busy (working) pane:
+{"state":"state: working · source: pane · harness busy (claude-hook)","open_decisions":[]}
+status-log fold still holds it open (drain):
+t1 [key=retry] needs-decision: retry the flaky upload step?

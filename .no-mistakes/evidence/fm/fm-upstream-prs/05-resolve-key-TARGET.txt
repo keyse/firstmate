@@ -1,0 +1,41 @@
+===== TARGET 6f3cdf3: fm-send --resolve-key on a finished ship =====
+--- adversarial: mistyped key ---
+$ fm-send.sh t1 --resolve-key api-shap 'Use REST.'
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx
+error: --resolve-key 'api-shap': no line in /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx/state/t1.status opens a decision or blocker under that exact key (a mistyped key, or an opening line the status fold rejected), and no captain-held task 'api-shap' or 't1-decision-api-shap' is still open to answer. Re-check the OPEN DECISIONS listing, then resend without that key or with the right one; nothing was sent.
+exit=
+
+--- adversarial: key already closed by a keyed resolved line ---
+$ fm-send.sh t1 --resolve-key old-choice 'Drop it again.'
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx
+error: --resolve-key 'old-choice': its decision in /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx/state/t1.status was already closed by a keyed resolved line, and no captain-held task 'old-choice' or 't1-decision-old-choice' is still open to answer. Re-check the OPEN DECISIONS listing, then resend without that key or with the right one; nothing was sent.
+exit=
+
+$ tail -1 state/t1.status   (unchanged by refusals)
+done: PR opened https://example.invalid/pr/1
+
+--- answer the decision raised before done: ---
+$ fm-send.sh t1 --resolve-key api-shape 'Use REST.'
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx
+fm-send: doorbell not typed because the agent in fm-lab-decfold-65840-10737:w1:p1 has exited; the steer is durably recorded at /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx/state/t1.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+exit=
+
+$ tail -3 state/t1.status
+working: continuing with REST as the provisional default
+done: PR opened https://example.invalid/pr/1
+resolved [key=api-shape] [at=1790551828]: answered: Use REST.
+
+$ fm-wake-drain.sh   (after answering)
+
+--- adversarial: answering the same key twice ---
+$ fm-send.sh t1 --resolve-key api-shape 'Use REST, again.'
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx
+error: --resolve-key 'api-shape': its decision in /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-lab.2ECIHx/state/t1.status was already closed by a keyed resolved line, and no captain-held task 'api-shape' or 't1-decision-api-shape' is still open to answer. Re-check the OPEN DECISIONS listing, then resend without that key or with the right one; nothing was sent.
+exit=
+--- exit codes (target) ---
+fm-send.sh t1 --resolve-key api-shap -> exit 1
+fm-send.sh t1 --resolve-key old-choice -> exit 1
+fm-send.sh t1 --resolve-key api-shape -> exit 1
+
+$ fm-fleet-snapshot.sh --json | jq '.tasks[]|select(.id=="t1")|.hints.open_decisions'  (after answer)
+{"state":"state: unknown · source: none · no current-state source available","open_decisions":[]}

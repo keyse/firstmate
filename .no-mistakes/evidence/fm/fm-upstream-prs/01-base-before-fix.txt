@@ -1,0 +1,19 @@
+===== BASE 3d14792 (before fix) =====
+$ cat state/t1.status
+working: implementing the API client
+needs-decision [key=old-choice]: keep the legacy flag or drop it
+resolved [key=old-choice]: answered: drop it
+needs-decision [key=api-shape]: pick REST or RPC for the public API
+working: continuing with REST as the provisional default
+done: PR opened https://example.invalid/pr/1
+
+$ fm-wake-drain.sh   (OPEN DECISIONS section)
+STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+t1 done: PR opened https://example.invalid/pr/1
+
+$ fm-crew-state.sh t1
+state: unknown · source: pane · harness state unavailable (unknown missing)
+
+$ fm-fleet-snapshot.sh --json | jq '.tasks[]|select(.id=="t1")|{current_state,open_decisions}'
+{"state":"unknown","source":"pane","open_decisions":null}
+

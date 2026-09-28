@@ -1,0 +1,26 @@
+===== Cursor upgrade: scout t2 (no endpoint), cursor first written by BASE, then read by TARGET =====
+1) BASE drain while the decision is open:
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+t2 [key=scope] needs-decision: include the legacy module in the survey?
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+
+2) scout appends done:; BASE drain folds the cursor forward:
+t2 done: report ready at data/t2/report.md
+
+$ head -1 state/.t2.open-decisions-cursor (base-written)
+version=9:scout
+(open set lines after header: 0)
+
+3) TARGET drain on the same home + same cursor:
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+t2 [key=scope] needs-decision: include the legacy module in the survey?
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+
+$ head -1 state/.t2.open-decisions-cursor (target-rewritten)
+version=10
+scope	needs-decision	include the legacy module in the survey?
+4) TARGET crew-state still reads the finished scout as done:
+state: unknown · source: none · no backend target recorded
+
+5) TARGET snapshot:
+{"state":"state: unknown · source: none · no backend target recorded","open_decisions":[{"key":"scope","verb":"needs-decision","summary":"include the legacy module in the survey?"}],"report":true}
