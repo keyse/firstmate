@@ -85,7 +85,7 @@
 #   advances it with content the server has never seen
 #   (docs/gerrit-forge-integration.md section 3).
 #
-# pr (orthogonal) = who writes the pull request's title and body. Absent means
+# pr (orthogonal) = how the pull request is made and who writes its text. Absent means
 #   `auto`, today's behavior: the no-mistakes pipeline's pr step writes and
 #   refreshes them. `manual` is for a project whose PR text a person writes
 #   and a maintainer reads: the worker owns the text and the pipeline's pr step

@@ -79,7 +79,7 @@
 # the only publishing tool. A forge on --mode local-only is refused, because that
 # mode publishes nothing, and `external` also refuses no-mistakes.
 # --pr names how the pull request is made and who writes its text, defaults to auto, and
-# is the explicit task-side form of the registry's `pr=manual` token exactly as
+# is the explicit task-side form of the registry's `pr=` token exactly as
 # --forge is of `forge=`: read from data/projects.md at intake and passed here,
 # never looked up or inferred, and bin/fm-spawn.sh refuses a brief that
 # disagrees with the registry. `manual` renders a no-mistakes brief whose worker
