@@ -1,0 +1,24 @@
+$ bin/fm-brief.sh wk-nm warka-nm --mode no-mistakes --pr batch
+scaffolded: $LAB/data/wk-nm/brief.md (ship, mode=no-mistakes pr=batch; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+$ bin/fm-brief.sh wk-dpr warka-direct --mode direct-PR --pr batch
+scaffolded: $LAB/data/wk-dpr/brief.md (ship, mode=direct-PR pr=batch; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+$ bin/fm-brief.sh wk-fix warka-nm --mode no-mistakes --pr batch --base-branch batch/keyse/3
+scaffolded: $LAB/data/wk-fix/brief.md (ship, mode=no-mistakes pr=batch; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+$ bin/fm-brief.sh wk-r1 warka-local --mode local-only --pr batch
+error: fm-brief.sh --pr: pr=batch ships mode=no-mistakes or direct-PR only - local-only opens no pull request to batch
+[exit 1]
+$ bin/fm-brief.sh wk-r2 warka-forge --mode no-mistakes --forge forgejo --pr batch
+error: fm-brief.sh --pr: pr=batch ships a project with no forge binding only, not forge=forgejo
+[exit 1]
+$ bin/fm-brief.sh wk-r3 warka-gerrit --mode direct-PR --forge gerrit --pr batch
+error: fm-brief.sh --pr: pr=batch ships a project with no forge binding only, not forge=gerrit
+[exit 1]
+$ bin/fm-brief.sh wk-r4 warka-nm --scout --pr batch
+error: --forge, --shape, and --pr apply only to ship briefs; a scout delivers a report and a secondmate charter is not a delivery contract
+[exit 1]
+$ bin/fm-brief.sh wk-r5 warka-nm --mode no-mistakes --pr batchy
+error: fm-brief.sh --pr: unknown PR posture 'batchy' (expected auto, manual, or batch)
+[exit 1]

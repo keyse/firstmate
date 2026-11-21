@@ -1,0 +1,49 @@
+## Registry
+# Projects
+- warka-prod [no-mistakes-prod-only pr=batch] - batching, conditional policy (added 2026-11-21)
+- warka-nm [no-mistakes +yolo pr=batch] - batching (added 2026-11-21)
+
+## Drift 1: warka-prod is registered pr=batch; a direct-PR brief scaffolded WITHOUT --pr batch
+$ B sp-a warka-prod --mode direct-PR
+scaffolded: $LAB/data/sp-a/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+$ S sp-a $LAB/projects/warka-prod sh -c 'sleep 60' --mode direct-PR --yolo off --backend tmux
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+error: PR-text mismatch for sp-a: warka-prod is registered pr=batch but $LAB/data/sp-a/brief.md records pr=auto; keep the filled ## Captain's intent and ## Firstmate spec bodies, remove $LAB/data/sp-a/brief.md, re-scaffold it with fm-brief.sh sp-a warka-prod --mode direct-PR --pr batch, then re-fill those two subsections, so the worker owns the PR text exactly when the project says so
+[exit 1]
+task recorded? no
+
+## Drift 2: brief carries pr=batch, but the registry entry has no pr token
+$ B sp-b warka-nm --mode no-mistakes --pr batch
+scaffolded: $LAB/data/sp-b/brief.md (ship, mode=no-mistakes pr=batch; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+- warka-nm [no-mistakes +yolo] - batching (added 2026-11-21)
+$ S sp-b $LAB/projects/warka-nm sh -c 'sleep 60' --mode no-mistakes --yolo on --backend tmux
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+error: PR-text mismatch for sp-b: warka-nm is registered pr=auto but $LAB/data/sp-b/brief.md records pr=batch; keep the filled ## Captain's intent and ## Firstmate spec bodies, remove $LAB/data/sp-b/brief.md, re-scaffold it with fm-brief.sh sp-b warka-nm --mode no-mistakes, then re-fill those two subsections, so the worker owns the PR text exactly when the project says so
+[exit 1]
+task recorded? no
+
+## Agree 1: warka-prod direct-PR brief WITH --pr batch
+$ B sp-c warka-prod --mode direct-PR --pr batch
+scaffolded: $LAB/data/sp-c/brief.md (ship, mode=direct-PR pr=batch; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+$ S sp-c $LAB/projects/warka-prod sh -c 'sleep 60' --mode direct-PR --yolo off --backend tmux
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+/Users/mohamoudibrahim/.no-mistakes/worktrees/073249faa5d1/01M800WM1V16135KR0C1ARZV0R/bin/backends/tmux.sh: line 97: tmux: command not found
+/Users/mohamoudibrahim/.no-mistakes/worktrees/073249faa5d1/01M800WM1V16135KR0C1ARZV0R/bin/backends/tmux.sh: line 119: tmux: command not found
+/Users/mohamoudibrahim/.no-mistakes/worktrees/073249faa5d1/01M800WM1V16135KR0C1ARZV0R/bin/backends/tmux.sh: line 123: tmux: command not found
+[exit 1]
+--- state/sp-c.meta
+
+## Agree 2: warka-nm no-mistakes brief WITH --pr batch, +yolo
+$ B sp-d warka-nm --mode no-mistakes --pr batch
+scaffolded: $LAB/data/sp-d/brief.md (ship, mode=no-mistakes pr=batch; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+$ S sp-d $LAB/projects/warka-nm sh -c 'sleep 60' --mode no-mistakes --yolo on --backend tmux
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+/Users/mohamoudibrahim/.no-mistakes/worktrees/073249faa5d1/01M800WM1V16135KR0C1ARZV0R/bin/backends/tmux.sh: line 97: tmux: command not found
+/Users/mohamoudibrahim/.no-mistakes/worktrees/073249faa5d1/01M800WM1V16135KR0C1ARZV0R/bin/backends/tmux.sh: line 119: tmux: command not found
+/Users/mohamoudibrahim/.no-mistakes/worktrees/073249faa5d1/01M800WM1V16135KR0C1ARZV0R/bin/backends/tmux.sh: line 123: tmux: command not found
+[exit 1]
+--- state/sp-d.meta

@@ -1,0 +1,36 @@
+$ FM_HOME=$LAB bin/fm-promote.sh pm-nm --mode no-mistakes --yolo off
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+promoted pm-nm to ship mode=no-mistakes yolo=off pr=batch (teardown protection restored)
+wrote ship instructions for mode=no-mistakes pr=batch: $LAB/data/pm-nm/ship-instructions.md
+next: FM_HOME=$LAB bin/fm-send.sh fm-pm-nm "$(cat $LAB/data/pm-nm/ship-instructions.md)"
+[exit 0]
+--- delivered contract line + rule 1:
+1. Never push to the default branch. Never merge a PR. The one exception is `scripts/batch.sh ship`, which your Definition of done has you run: it pushes the project's batch branch, opens or extends the shared batch PR, and may arm its auto-merge under the project's own setting. Never push to a batch branch, or open, edit, merge, or close a batch PR, any other way.
+Delivery contract: mode=no-mistakes pr=batch
+
+$ FM_HOME=$LAB bin/fm-promote.sh pm-dpr --mode direct-PR --yolo off
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+promoted pm-dpr to ship mode=direct-PR yolo=off pr=batch (teardown protection restored)
+wrote ship instructions for mode=direct-PR pr=batch: $LAB/data/pm-dpr/ship-instructions.md
+next: FM_HOME=$LAB bin/fm-send.sh fm-pm-dpr "$(cat $LAB/data/pm-dpr/ship-instructions.md)"
+[exit 0]
+--- delivered contract line + rule 1:
+1. Never push to the default branch (push only your `fm/pm-dpr` branch). Never merge a PR. The one exception is `scripts/batch.sh ship`, which your Definition of done has you run: it pushes the project's batch branch, opens or extends the shared batch PR, and may arm its auto-merge under the project's own setting. Never push to a batch branch, or open, edit, merge, or close a batch PR, any other way.
+Delivery contract: mode=direct-PR pr=batch
+
+$ FM_HOME=$LAB bin/fm-promote.sh pm-lo --mode local-only --yolo off
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+promoted pm-lo to ship mode=local-only yolo=off (teardown protection restored)
+wrote ship instructions for mode=local-only: $LAB/data/pm-lo/ship-instructions.md
+next: FM_HOME=$LAB bin/fm-send.sh fm-pm-lo "$(cat $LAB/data/pm-lo/ship-instructions.md)"
+[exit 0]
+--- delivered contract line + rule 1:
+1. Never push to any remote and never open a PR. Work only on your `fm/pm-lo` branch; firstmate handles the merge into local `main`.
+Delivery contract: mode=local-only
+

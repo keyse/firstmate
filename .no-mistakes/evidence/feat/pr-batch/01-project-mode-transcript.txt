@@ -1,0 +1,63 @@
+$ FM_HOME=$LAB bin/fm-project-mode.sh  warka-nm
+no-mistakes on
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --pr warka-nm
+batch
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --forge warka-nm
+none
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh  warka-prod
+no-mistakes off
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --pr warka-prod
+batch
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --forge warka-prod
+none
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh  warka-direct
+direct-PR off
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --pr warka-direct
+batch
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --forge warka-direct
+none
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh  warka-local
+refused: warka-local is registered local-only with pr=batch in $LAB/data/projects.md; local-only opens no pull request, so there is no batch to ship into; register no-mistakes or direct-PR, or drop the pr token
+[exit 3]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --pr warka-local
+refused: warka-local is registered local-only with pr=batch in $LAB/data/projects.md; local-only opens no pull request, so there is no batch to ship into; register no-mistakes or direct-PR, or drop the pr token
+[exit 3]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --forge warka-local
+none
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh  warka-forge
+refused: warka-forge is registered with pr=batch and forge=forgejo in $LAB/data/projects.md; pr=batch ships a project with no forge binding only; drop the pr token
+[exit 3]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --pr warka-forge
+refused: warka-forge is registered with pr=batch and forge=forgejo in $LAB/data/projects.md; pr=batch ships a project with no forge binding only; drop the pr token
+[exit 3]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --forge warka-forge
+forgejo
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh  warka-gerrit
+refused: warka-gerrit is registered with pr=batch and forge=gerrit in $LAB/data/projects.md; pr=batch ships a project with no forge binding only; drop the pr token
+[exit 3]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --pr warka-gerrit
+refused: warka-gerrit is registered with pr=batch and forge=gerrit in $LAB/data/projects.md; pr=batch ships a project with no forge binding only; drop the pr token
+[exit 3]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --forge warka-gerrit
+gerrit
+[exit 0]
+$ FM_HOME=$LAB bin/fm-project-mode.sh  warka-bogus
+refused: unknown PR binding "pr=batches" registered for warka-bogus in $LAB/data/projects.md; the accepted values are pr=manual and pr=batch, or no pr token at all for the pipeline's own PR text; correct the registry entry
+[exit 3]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --pr warka-bogus
+refused: unknown PR binding "pr=batches" registered for warka-bogus in $LAB/data/projects.md; the accepted values are pr=manual and pr=batch, or no pr token at all for the pipeline's own PR text; correct the registry entry
+[exit 3]
+$ FM_HOME=$LAB bin/fm-project-mode.sh --forge warka-bogus
+none
+[exit 0]
