@@ -62,6 +62,7 @@ A forge composes with `no-mistakes`, `direct-PR`, and `no-mistakes-prod-only` (`
 `bin/fm-project-mode.sh`'s header owns the binding and `bin/fm-dod-lib.sh` owns what it changes for a worker.
 The optional `pr=manual` token marks a `no-mistakes` project whose PR title and body a person writes, so the pipeline's `pr` step must not rewrite them; register it only on the captain's confirmation, with no `forge=` token (`docs/configuration.md` "PR posture selection").
 The optional `pr=batch` token marks a project whose own `scripts/batch.sh` batches finished branches into one pull request at a time; register it only on the captain's confirmation that the project has that script, with no `forge=` token (same section).
+The project's `batch.automerge` git setting should be enabled only on a `+yolo` project, because it merges batch PRs without firstmate's merge authority.
 
 ## Add or clone an existing project
 

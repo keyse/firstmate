@@ -1568,12 +1568,6 @@ test_forge_gerrit_changes_what_no_mistakes_means() {
   pass "forge=gerrit: no-mistakes runs with its forge steps skipped, recovers its fixes, then publishes one change"
 }
 
-# A registered forge is the captain's binding, so the spawn refuses a brief that
-# disagrees with it in either direction: a Gerrit project launched on a brief that
-# does not carry the forge would tell the worker to open a pull request and report
-# green checks on a server that has neither, and a Gerrit brief on an unbound
-# project would publish to a forge the project is not. Both publishing modes
-# compose with the forge; local-only, which publishes nothing, cannot carry it.
 # pr=batch ships a batching project's branches through its own scripts/batch.sh:
 # no-mistakes only validates and pushes, direct-PR pushes without a PR, and
 # both report the shared batch PR, with the batch script the one exception to
@@ -1670,6 +1664,12 @@ EOF
   pass "fm-spawn: pr=batch binds direct-PR and no-mistakes tasks on a conditional-policy project"
 }
 
+# A registered forge is the captain's binding, so the spawn refuses a brief that
+# disagrees with it in either direction: a Gerrit project launched on a brief that
+# does not carry the forge would tell the worker to open a pull request and report
+# green checks on a server that has neither, and a Gerrit brief on an unbound
+# project would publish to a forge the project is not. Both publishing modes
+# compose with the forge; local-only, which publishes nothing, cannot carry it.
 test_spawn_requires_the_brief_to_carry_the_registered_forge() {
   local rec home proj fakebin out status
   rec=$(make_home forge-agree-gerrit "- proj [no-mistakes forge=gerrit] - fixture (added 2026-01-01)")
