@@ -44,10 +44,10 @@
 # binding and bin/fm-dod-lib.sh owns what it changes for the worker, including
 # the refusal of a forge on local-only. A forge=external project is refused
 # outright, because its push guard is installed only by a ship spawn.
-# The project's pr=manual binding is read the same way and applies to a promoted
-# no-mistakes mode only (bin/fm-project-mode.sh --pr; bin/fm-dod-lib.sh's
-# fm_pr_text_valid owns where it is accepted); the ship's Definition of done then
-# carries it.
+# The project's pr= binding is read the same way: pr=manual applies to a promoted
+# no-mistakes mode only and pr=batch to no-mistakes and direct-PR
+# (bin/fm-project-mode.sh --pr; bin/fm-dod-lib.sh's fm_pr_text_valid owns where
+# each is accepted); the ship's Definition of done then carries it.
 # Usage: fm-promote.sh <task-id> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--upstream-consent <host>/<owner>/<repo>]
 # --upstream-consent records the captain's one-off approval for this task to
 # publish to firstmate's own upstream repository; promotion applies the same
@@ -243,7 +243,13 @@ if [ -n "$PROMOTE_PROJECT" ]; then
     echo "error: $ID cannot promote: the registry entry for $PROMOTE_PROJECT_NAME does not resolve to a delivery posture (see the refusal above); correct data/projects.md and promote again" >&2
     exit 1
   fi
-  [ "$MODE" != no-mistakes ] || PR_TEXT=${PROMOTE_STANDING_PR:-auto}
+  PR_TEXT=${PROMOTE_STANDING_PR:-auto}
+  # manual applies to a no-mistakes ship only; batch to both publishing modes
+  # (bin/fm-dod-lib.sh's fm_pr_text_valid owns where each is accepted).
+  case "$PR_TEXT:$MODE" in
+    manual:no-mistakes|batch:no-mistakes|batch:direct-PR) ;;
+    *) PR_TEXT=auto ;;
+  esac
 fi
 BASE_BRANCH=$(sed -n 's/^base_branch=//p' "$META" | head -n 1)
 fm_base_branch_valid "$BASE_BRANCH" "$MODE" "$FORGE" "fm-promote.sh $ID" || exit 1
@@ -340,7 +346,7 @@ The mode-specific Definition of done below is the current delivery contract.
 
 # Current ship safety rule
 EOF
-  fm_ship_rule_one "$MODE" "$ID" "$BRANCH" "$FORGE" "$BASE_BRANCH"
+  fm_ship_rule_one "$MODE" "$ID" "$BRANCH" "$FORGE" "$BASE_BRANCH" "$PR_TEXT"
   if [ -n "$PROMOTION_ASK_USER_BLOCK" ]; then
     printf '\nThe no-mistakes ask-user escalation below supersedes the scout rule 6 escalation shape.\n'
     printf '%s\n' "$PROMOTION_ASK_USER_BLOCK"

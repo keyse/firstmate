@@ -9,8 +9,8 @@
 # With --forge it prints one word instead: the project's registered forge,
 # none|gerrit|forgejo|external. The forge is asked for explicitly, so the
 # default output stays the same two words for every project, bound or not.
-# With --pr it prints one word: the project's registered PR-text posture,
-# auto|manual, "auto" when the project registers none.
+# With --pr it prints one word: the project's registered PR posture,
+# auto|manual|batch, "auto" when the project registers none.
 #
 # MECHANICAL CONSUMERS ONLY. This answers "what posture did the captain register
 # for this project", never "how does this task ship". A task's delivery mode,
@@ -34,6 +34,7 @@
 #   - <name> [<mode> forge=forgejo] - <desc> (added <date>)          -> <mode> <yolo>, --forge forgejo
 #   - <name> [direct-PR forge=external] - <desc> (added <date>)      -> direct-PR off, --forge external
 #   - <name> [no-mistakes pr=manual] - <desc> (added <date>)         -> no-mistakes off, --pr manual
+#   - <name> [no-mistakes +yolo pr=batch] - <desc> (added <date>)    -> no-mistakes on, --pr batch
 #   <name> may contain spaces; it ends at the literal " [" or " - " that follows it.
 #   Bracket tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, and
 #   pr=<value> are recognized by their own shape wherever they appear, and whichever token is
@@ -98,6 +99,18 @@
 #   empty or unknown value), are REFUSED in the default and --pr output forms:
 #   nothing on stdout, exit status 3, the token named. --branch-prefix and
 #   --forge do not make these checks.
+#   `batch` is for a project that batches its finished branches into one pull
+#   request at a time with its own scripts/batch.sh, whose status, ship, and
+#   base subcommands are the contract: the worker pushes its validated branch
+#   without opening a pull request, runs `scripts/batch.sh ship`, and reports
+#   the shared batch pull request that carries its branch, so several tasks
+#   record the same pr= and land when it merges (bin/fm-dod-lib.sh owns that
+#   worker contract). It ships no-mistakes, the conditional policy, and
+#   direct-PR alike, because every branch of such a project reaches main
+#   through a batch; it is REFUSED on local-only, which opens no pull request,
+#   and beside a forge binding, whose publication is not a branch push. A batch
+#   pull request the project arms for auto-merge merges without firstmate, so
+#   that project setting belongs only where +yolo already grants the merge.
 #
 # A registered `forge=gerrit` project reports yolo=off with an explicit stderr
 # refusal, on the captain's decision of 2026-09-15: a Gerrit Code-Review+2 is a
@@ -275,14 +288,24 @@ if [ "$WANT_FORGE" -eq 1 ]; then
 fi
 
 case "$pr" in
-  auto|pr=manual) pr=${pr#pr=} ;;
+  auto|pr=manual|pr=batch) pr=${pr#pr=} ;;
   pr=)
-    echo "refused: empty PR-text binding \"pr=\" registered for $NAME in $REG; the only accepted value is pr=manual, or no pr token at all for the pipeline's own PR text; correct the registry entry" >&2
+    echo "refused: empty PR binding \"pr=\" registered for $NAME in $REG; the accepted values are pr=manual and pr=batch, or no pr token at all for the pipeline's own PR text; correct the registry entry" >&2
     exit 3 ;;
   *)
-    echo "refused: unknown PR-text binding \"$pr\" registered for $NAME in $REG; the only accepted value is pr=manual, or no pr token at all for the pipeline's own PR text; correct the registry entry" >&2
+    echo "refused: unknown PR binding \"$pr\" registered for $NAME in $REG; the accepted values are pr=manual and pr=batch, or no pr token at all for the pipeline's own PR text; correct the registry entry" >&2
     exit 3 ;;
 esac
+if [ "$pr" = batch ]; then
+  if [ "$mode" = local-only ]; then
+    echo "refused: $NAME is registered local-only with pr=batch in $REG; local-only opens no pull request, so there is no batch to ship into; register no-mistakes or direct-PR, or drop the pr token" >&2
+    exit 3
+  fi
+  if [ "$forge" != none ]; then
+    echo "refused: $NAME is registered with pr=batch and forge=$forge in $REG; pr=batch ships a project with no forge binding only; drop the pr token" >&2
+    exit 3
+  fi
+fi
 if [ "$pr" = manual ]; then
   case "$mode" in
     no-mistakes|no-mistakes-prod-only) ;;

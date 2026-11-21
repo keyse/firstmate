@@ -14,7 +14,7 @@
 # charters still use a single `{TASK}` charter fill. Firstmate may adjust other
 # sections when the task genuinely deviates (e.g. working an existing external
 # PR instead of shipping a new one).
-# Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--branch-prefix <prefix>] [--base-branch <branch>] [--forge <none|gerrit|forgejo|external> [--shape squash]] [--pr <auto|manual>] [--herdr-lab]
+# Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--branch-prefix <prefix>] [--base-branch <branch>] [--forge <none|gerrit|forgejo|external> [--shape squash]] [--pr <auto|manual|batch>] [--herdr-lab]
 #        fm-brief.sh <task-id> <repo-name> --scout [--base-branch <branch>] [--herdr-lab]
 #        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
 #   --scout writes the scout contract instead: the deliverable is a report at
@@ -78,14 +78,17 @@
 # on `external` that rule names no forge CLI, because the home's review tool is
 # the only publishing tool. A forge on --mode local-only is refused, because that
 # mode publishes nothing, and `external` also refuses no-mistakes.
-# --pr names who writes the pull request's title and body, defaults to auto, and
+# --pr names how the pull request is made and who writes its text, defaults to auto, and
 # is the explicit task-side form of the registry's `pr=manual` token exactly as
 # --forge is of `forge=`: read from data/projects.md at intake and passed here,
 # never looked up or inferred, and bin/fm-spawn.sh refuses a brief that
 # disagrees with the registry. `manual` renders a no-mistakes brief whose worker
 # writes the PR text itself with the pipeline's pr and ci steps skipped, and
-# records " pr=manual" on the Delivery contract line. bin/fm-dod-lib.sh's
-# fm_pr_text_valid owns where it is accepted: no-mistakes with no forge only.
+# records " pr=manual" on the Delivery contract line. `batch` is the registry's
+# `pr=batch` token the same way: a no-mistakes or direct-PR brief whose worker
+# pushes its branch without a PR and ships it with the project's
+# scripts/batch.sh, recorded as " pr=batch". bin/fm-dod-lib.sh's
+# fm_pr_text_valid owns where each value is accepted.
 # --shape names how a forge=gerrit task is published, and only `squash` - one
 # change - is accepted: `stack` is refused until a stack can be watched by its
 # membership pinned when its watch is armed, because the merge watch follows one
@@ -107,7 +110,8 @@
 # The generated ship brief records the chosen mode as a fixed machine-readable
 # "Delivery contract: mode=<mode>" line, followed by " forge=gerrit shape=squash"
 # on Gerrit, " forge=forgejo" on Forgejo, or " forge=external" on an external
-# review tool, then " pr=manual" when the worker owns the PR text. bin/fm-spawn.sh reads that line and
+# review tool, then " pr=manual" when the worker owns the PR text or " pr=batch"
+# when the project's batch opens it. bin/fm-spawn.sh reads that line and
 # refuses to launch a ship task whose explicit --mode or registered forge
 # disagrees, so an adjusted brief and the recorded task metadata cannot drift
 # apart.
@@ -774,7 +778,7 @@ case "$MODE" in
 2. Run \`no-mistakes doctor\`; if it reports the repo is not initialized here, run \`no-mistakes init\`."
     ;;
 esac
-RULE1=$(fm_ship_rule_one "$MODE" "$ID" "$BRANCH" "$FORGE" "$BASE_BRANCH") || exit 1
+RULE1=$(fm_ship_rule_one "$MODE" "$ID" "$BRANCH" "$FORGE" "$BASE_BRANCH" "$PR_TEXT") || exit 1
 DOD=$(fm_dod_block "$MODE" "$ID" "$BRANCH" "$FORGE" "$BASE_BRANCH" "$UPSTREAM_CONSENT" "$PR_TEXT") || exit 1
 
 cat > "$BRIEF" <<EOF
@@ -831,8 +835,8 @@ A correction edits only the wrong text: do not run \`$FM_ROOT/bin/fm-ensure-agen
 $DOD
 EOF
 append_brief_include
-if [ "$PR_TEXT" = manual ]; then
-  echo "scaffolded: $BRIEF (ship, mode=$MODE pr=manual; replace {TASK} and {FIRSTMATE_SPEC})"
+if [ "$PR_TEXT" != auto ]; then
+  echo "scaffolded: $BRIEF (ship, mode=$MODE pr=$PR_TEXT; replace {TASK} and {FIRSTMATE_SPEC})"
 elif [ "$FORGE" = none ]; then
   echo "scaffolded: $BRIEF (ship, mode=$MODE; replace {TASK} and {FIRSTMATE_SPEC})"
 elif [ "$FORGE" = gerrit ]; then

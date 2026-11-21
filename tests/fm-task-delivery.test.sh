@@ -1574,6 +1574,102 @@ test_forge_gerrit_changes_what_no_mistakes_means() {
 # green checks on a server that has neither, and a Gerrit brief on an unbound
 # project would publish to a forge the project is not. Both publishing modes
 # compose with the forge; local-only, which publishes nothing, cannot carry it.
+# pr=batch ships a batching project's branches through its own scripts/batch.sh:
+# no-mistakes only validates and pushes, direct-PR pushes without a PR, and
+# both report the shared batch PR, with the batch script the one exception to
+# the push and merge rule.
+test_pr_batch_brief_ships_through_the_project_batch() {
+  local home nm direct based
+  home="$TMP_ROOT/pr-batch-brief/home"
+  mkdir -p "$home/data" "$home/state"
+  FM_HOME="$home" "$BRIEF" pr-batch-b1 proj --mode no-mistakes --pr batch >/dev/null \
+    || fail "a pr=batch no-mistakes brief should scaffold"
+  nm="$home/data/pr-batch-b1/brief.md"
+  grep -qx "Delivery contract: mode=no-mistakes pr=batch" "$nm" \
+    || fail "the brief did not record pr=batch on its delivery contract line"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  assert_grep 'Pass `--skip pr,ci` on every `no-mistakes axi run` for this task' "$nm" \
+    "the worker was not told to skip the pipeline's own PR"
+  assert_no_grep 'Pass `--skip push' "$nm" "the worker was told to skip the push the batch depends on"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  assert_grep 'The one exception is `scripts/batch.sh ship`' "$nm" "rule 1 left the batch script forbidden"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  assert_grep 'Run `scripts/batch.sh ship`' "$nm" "the worker was not told to ship into a batch"
+  assert_grep 'never rewrite it' "$nm" "the worker may still rewrite a batched branch"
+  assert_grep 'paused [at=<epoch>]: queued for the next batch behind PR' "$nm" "a queued branch is not a declared wait"
+  assert_grep 'needs a fix-forward branch cut from scripts/batch.sh base' "$nm" "a failing batch is not fixed forward"
+  assert_grep 'done [at=<epoch>]: PR {batch PR url} checks green' "$nm" "the CI-ready report does not name the batch PR"
+  assert_grep 'ask-user findings are never yours to answer' "$nm" "the ask-user escalation rule was lost"
+  assert_no_grep 'gh-axi pr create' "$nm" "the worker was told to open its own PR"
+
+  FM_HOME="$home" "$BRIEF" pr-batch-b2 proj --mode direct-PR --pr batch >/dev/null \
+    || fail "a pr=batch direct-PR brief should scaffold"
+  direct="$home/data/pr-batch-b2/brief.md"
+  grep -qx "Delivery contract: mode=direct-PR pr=batch" "$direct" \
+    || fail "the direct-PR brief did not record pr=batch"
+  assert_grep 'open no PR' "$direct" "the direct-PR worker was not kept from opening its own PR"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  assert_grep 'Run `scripts/batch.sh ship`' "$direct" "the direct-PR worker was not told to ship into a batch"
+  assert_grep 'Do NOT run /no-mistakes' "$direct" "the direct-PR worker may run the pipeline"
+
+  # A fix-forward task starts from the open batch branch and rebases onto it.
+  FM_HOME="$home" "$BRIEF" pr-batch-b3 proj --mode no-mistakes --pr batch --base-branch batch/me/1 >/dev/null \
+    || fail "a pr=batch brief with a base branch should scaffold"
+  based="$home/data/pr-batch-b3/brief.md"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  assert_grep 'pass `--base-branch batch/me/1` on every `no-mistakes axi run`' "$based" "the fix-forward worker was not told to rebase onto the batch"
+  assert_no_grep 'opens its PR against' "$based" "the pr=batch brief still claims the pipeline opens the PR"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  assert_grep 'merge `origin/batch/me/1` into your branch' "$based" "a conflict was not resolved against the batch"
+  pass "fm-brief: pr=batch records its contract suffix and ships both publishing modes through the project's batch"
+}
+
+test_pr_batch_is_refused_where_it_cannot_apply() {
+  local home out status
+  home="$TMP_ROOT/pr-batch-refuse/home"
+  mkdir -p "$home/data" "$home/state"
+  for args in "--mode local-only --pr batch" "--mode no-mistakes --forge gerrit --pr batch" \
+    "--mode direct-PR --forge forgejo --pr batch" "--scout --pr batch"; do
+    # shellcheck disable=SC2086 # The flags are a word list.
+    out=$(FM_HOME="$home" "$BRIEF" pr-batch-r1 proj $args 2>&1)
+    status=$?
+    [ "$status" -ne 0 ] || fail "fm-brief accepted $args"
+    assert_absent "$home/data/pr-batch-r1/brief.md" "a refused scaffold ($args) still wrote a brief"
+  done
+  out=$(FM_HOME="$home" "$BRIEF" pr-batch-r2 proj --mode local-only --pr batch 2>&1)
+  assert_contains "$out" "local-only opens no pull request to batch" "the local-only refusal did not say why"
+  pass "fm-brief: pr=batch is refused on local-only, a bound forge, and a scout"
+}
+
+# Every branch of a batching project reaches main through a batch, so a
+# conditional-policy project's direct-PR task carries pr=batch too.
+test_spawn_requires_the_registered_pr_batch_on_both_publishing_modes() {
+  local rec home proj fakebin out status
+  rec=$(make_home pr-batch-agree "- proj [no-mistakes-prod-only pr=batch] - fixture (added 2026-01-01)")
+  IFS='|' read -r home proj fakebin <<EOF
+$rec
+EOF
+  FM_HOME="$home" "$BRIEF" pr-batch-a1 proj --mode direct-PR >/dev/null \
+    || fail "a direct-PR brief should scaffold"
+  fill_brief_subsections "$home/data/pr-batch-a1/brief.md" "Batch it." "Ship it."
+  out=$(run_spawn "$home" "$fakebin" pr-batch-a1 "$proj" claude --mode direct-PR --yolo off 2>&1)
+  status=$?
+  [ "$status" -ne 0 ] || fail "a direct-PR task on a pr=batch project launched without the token"
+  assert_contains "$out" "PR-text mismatch for pr-batch-a1" "the refusal did not name the drift it caught"
+  assert_contains "$out" "fm-brief.sh pr-batch-a1 proj --mode direct-PR --pr batch" \
+    "the refusal did not print a re-scaffold command that can actually run"
+  assert_absent "$home/state/pr-batch-a1.meta" "the refused spawn still recorded a task"
+
+  for mode in direct-PR no-mistakes; do
+    FM_HOME="$home" "$BRIEF" "pr-batch-$mode" proj --mode "$mode" --pr batch >/dev/null \
+      || fail "a pr=batch $mode brief should scaffold"
+    fill_brief_subsections "$home/data/pr-batch-$mode/brief.md" "Batch it." "Ship it."
+    out=$(run_spawn "$home" "$fakebin" "pr-batch-$mode" "$proj" claude --mode "$mode" --yolo off 2>&1)
+    assert_not_contains "$out" "PR-text mismatch" "an agreeing pr=batch $mode brief was reported as drift"
+  done
+  pass "fm-spawn: pr=batch binds direct-PR and no-mistakes tasks on a conditional-policy project"
+}
+
 test_spawn_requires_the_brief_to_carry_the_registered_forge() {
   local rec home proj fakebin out status
   rec=$(make_home forge-agree-gerrit "- proj [no-mistakes forge=gerrit] - fixture (added 2026-01-01)")
@@ -2003,6 +2099,9 @@ test_forge_forgejo_rides_the_same_binding
 test_pr_manual_brief_hands_the_pr_text_to_the_worker
 test_pr_manual_is_refused_where_it_cannot_apply
 test_spawn_requires_the_brief_to_carry_the_registered_pr_text
+test_pr_batch_brief_ships_through_the_project_batch
+test_pr_batch_is_refused_where_it_cannot_apply
+test_spawn_requires_the_registered_pr_batch_on_both_publishing_modes
 test_promotion_carries_the_pr_text_binding
 test_spawn_and_promote_require_filled_task_subsections
 test_project_mode_resolves_branch_prefix

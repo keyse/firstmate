@@ -19,6 +19,13 @@ A no-mistakes worker re-validates it with /no-mistakes so the pipeline stays the
 In no-mistakes mode the earlier `done [at=<epoch>]: {summary}` is the pipeline handoff and is not gated.
 Tell the captain the PR's full `https://...` URL copied from the worker's ready line, the resolved checks-green crew-state line, or the task's `pr=` metadata, a concise outcome summary, and the no-mistakes risk level when applicable.
 A captain instruction to merge is explicit authority; `yolo` is the only standing routine merge authority.
+
+On a `pr=batch` project (`docs/configuration.md` "PR posture selection"), the ready line names the shared batch PR, so several tasks record the same `pr=` and each lands when that one PR merges; merge it once, and a second task's merge needs nothing because its poll records the merge.
+`bin/fm-dod-lib.sh` owns the worker's batch steps; firstmate owns only the resumes, because the worker stops at both waits the batch cannot clear itself:
+- A worker that appended `paused: queued for the next batch behind PR <url>` resumes when that PR merges or closes: steer it to continue at step 2 of its batch steps, which runs `scripts/batch.sh ship` and opens the next batch; steer queued workers one at a time, because one ship carries every ready branch and the others then find theirs already batched.
+- A worker that appended `blocked: batch PR <url> failed ...` never fixes its batched branch, because batched branches are never rewritten.
+  Dispatch one fix-forward ship per failing batch, not one per blocked worker, with `--base-branch` set to the open batch branch (`scripts/batch.sh base` prints it as `origin/<branch>`) on the brief and the spawn, so its branch is cut from the batch and joins it; then steer each blocked worker on that PR to resume at step 4.
+- A batch PR that degrades after a task recorded it wakes only through that task's merge poll; handle it as the same failing-batch case.
 For any custom `state/<id>.check.sh` you write yourself, keep it an ordinary single-link mode-`0700` file, print one line only when firstmate should wake, print nothing otherwise, finish before `FM_CHECK_TIMEOUT`, then bind its current bytes with `bin/fm-check-register.sh <id>` before the watcher may execute it.
 Retire a custom check only through `bin/fm-check-unregister.sh <id>` (or `bin/fm-teardown.sh` for a spawned task); never hand-compose an `rm` with `$STATE`/`$ID`.
 
