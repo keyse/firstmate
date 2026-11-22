@@ -526,7 +526,9 @@ EOF
 # checks itself. Shaped like the gerrit block: skip flags, the shared driving
 # block, then what to do once the run passes. Callers are fm_dod_block only.
 fm_dod_manual_pr_block() {  # <branch> <forge-cli> <draft-check> <contract-suffix> <nm-base> <pr-base>
-  local branch=$1 forge_cli=$2 draft_check=$3 suffix=$4 nm_base=$5 pr_base=$6
+  local branch=$1 forge_cli=$2 draft_check=$3 suffix=$4 nm_base=$5 pr_base=$6 checks_cli=$2
+  # gh-axi has no checks --watch, so the GitHub wait uses plain gh.
+  [ "$forge_cli" != gh-axi ] || checks_cli=gh
   cat <<EOF
 # Definition of done
 Delivery contract: mode=no-mistakes$suffix pr=manual
@@ -546,7 +548,7 @@ When the run's outcome is passed, passed-with-skips, or passed-with-override, wr
 1. Write the PR body to a file of your own under the scratch location rule 2 names, and verify it with \`head\` before using it. Match the title and body style of the project's recent merged PRs and its contribution guide, in plain English for a reviewer who lacks your context, with no direct address, and keep any issue reference the captain's intent names.
 2. Find the PR for your branch first (\`$forge_cli pr list --head <branch>\`). If one exists, update its title and body with \`$forge_cli pr edit <number> --title '<title>' --body-file <path>\`. Otherwise open it with \`$forge_cli pr create\` from the branch the run pushed, ready for review, not a draft$pr_base.
 3. Never post a comment or review on the PR or on any other thread, and never rely on the pipeline for the PR text: it is yours on every push.
-4. Wait for the PR's checks with \`$forge_cli pr checks <number> --watch\`, under the ten-minute command limit as the driving block bounds its waits, and run the same command again whenever it returns with checks still pending. \`$forge_cli pr checks\` exits 1 when the project reports no checks at all: that is not a failed check and needs no fix. If a check fails, commit the fix, drive a new run with the same \`--skip pr,ci\`, and update the PR text if the change affects it.
+4. Wait for the PR's checks with \`$checks_cli pr checks <number> --watch\`, under the ten-minute command limit as the driving block bounds its waits, and run the same command again whenever it returns with checks still pending. \`$forge_cli pr checks\` exits 1 when the project reports no checks at all: that is not a failed check and needs no fix. If a check fails, commit the fix, drive a new run with the same \`--skip pr,ci\`, and update the PR text if the change affects it.
 Then read the PR back from the forge and confirm it is not a draft $draft_check
 A draft cannot be merged, so a done report on one leaves the merge unasked.
 Then append \`done [at=<epoch>]: PR {url} checks green\` and stop. You are finished.
@@ -582,7 +584,7 @@ Until \`scripts/batch.sh ship\` takes \`$branch\` into a batch it is still yours
    - Under "in the open batch": the open batch PR carries your branch. Read its URL from \`gh-axi pr view <number>\`, with the number the status printed, and go to step 4.
    - Under "ready for the next batch": another batch is open and your branch waits for the next one, which is a normal outcome, not a failure. Append \`paused [at=<epoch>]: queued for the next batch behind PR {open batch PR url}\` and stop. When that PR merges or closes, firstmate tells you to resume, and you continue at step 2, which opens the next batch with your branch in it.
    - Under "fixes, joining the open batch at the next ship", or still waiting for the per-branch check: go back to step 1.
-4. Wait for the batch PR's checks with \`gh-axi pr checks <number> --watch\`, under the ten-minute command limit as the driving rules bound every wait, and run the same command again whenever it returns with checks still pending. The project may merge a green batch on its own; a merged batch PR counts as green.
+4. Wait for the batch PR's checks with \`gh pr checks <number> --watch\`, under the ten-minute command limit as the driving rules bound every wait, and run the same command again whenever it returns with checks still pending. The project may merge a green batch on its own; a merged batch PR counts as green.
    - When its checks are green or it has merged, append \`done [at=<epoch>]: PR {batch PR url} checks green\` and stop. You are finished. Other tasks may report the same batch PR; firstmate tracks each against it, and they land together when it merges.
      That \`done:\` is accepted only when this copy's HEAD - your latest commit - is the pushed head of \`$branch\`, so commit nothing after shipping.
    - When a check fails, do not fix it on your branch, which the batch already carries. Append \`blocked [at=<epoch>]: batch PR {url} failed {check}: {one-line cause from its log}; needs a fix-forward branch cut from scripts/batch.sh base\` and stop. Firstmate dispatches the fix as a separate task whose branch joins this batch, then tells you to resume at step 4.
