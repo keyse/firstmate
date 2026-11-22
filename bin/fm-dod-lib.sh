@@ -20,13 +20,17 @@
 # --base-branch; empty means the repository default. A named base is the branch
 # the worker starts from, never pushes to, and targets with its pull request, and
 # fm_base_branch_valid refuses it where no pull request carries the work.
-# The optional seventh argument is the task's PR-text posture, auto|manual,
+# The optional seventh argument is the task's PR posture, auto|manual|batch,
 # defaulting to auto: `manual` is bin/fm-brief.sh --pr manual, the registry's
 # `pr=manual` token (bin/fm-project-mode.sh owns what the binding means). It
 # renders a no-mistakes block whose worker writes the PR title and body itself,
 # and appends " pr=manual" to the Delivery contract line, which bin/fm-spawn.sh
-# checks against the registry like the forge. fm_pr_text_valid refuses it on any
-# other mode or forge.
+# checks against the registry like the forge. `batch` is the registry's
+# `pr=batch` token: the worker pushes its branch without opening a pull request,
+# ships it with the project's scripts/batch.sh, and reports the shared batch
+# pull request that carries it (fm_dod_batch_ship_steps), on no-mistakes and
+# direct-PR alike, with " pr=batch" on the Delivery contract line.
+# fm_pr_text_valid refuses either value on a mode or forge that cannot take it.
 # The optional sixth argument is the task's recorded upstream consent for a
 # firstmate-repository contribution (bin/fm-role-lib.sh owns the boundary): a
 # captain-approved <host>/<owner>/<repo> publication scope for this one task,
@@ -206,13 +210,25 @@ fm_forge_valid_for_mode() {  # <forge> <mode> <caller>
 # worker and local-only opens no PR. A bound forge is refused too: gerrit has no
 # pull request to describe, external uploads through a review tool, and the
 # forgejo worker's tea commands are not written into this block yet.
+# batch ships no-mistakes and direct-PR, both of which push a branch, with no
+# forge binding, because the batch script drives GitHub pull requests.
 fm_pr_text_valid() {  # <pr> <mode> <forge> <caller>
   local pr=$1 mode=$2 forge=$3 caller=$4
   case "$pr" in
     auto) return 0 ;;
     manual) ;;
+    batch)
+      if [ "$mode" != no-mistakes ] && [ "$mode" != direct-PR ]; then
+        echo "error: $caller: pr=batch ships mode=no-mistakes or direct-PR only - local-only opens no pull request to batch" >&2
+        return 1
+      fi
+      if [ "$forge" != none ]; then
+        echo "error: $caller: pr=batch ships a project with no forge binding only, not forge=$forge" >&2
+        return 1
+      fi
+      return 0 ;;
     *)
-      echo "error: $caller: unknown PR-text posture '$pr' (expected auto or manual)" >&2
+      echo "error: $caller: unknown PR posture '$pr' (expected auto, manual, or batch)" >&2
       return 1 ;;
   esac
   if [ "$mode" != no-mistakes ]; then
@@ -273,9 +289,9 @@ fm_brief_base_branches() {  # <brief>
   ' "$1"
 }
 
-fm_ship_rule_one() {  # <no-mistakes|direct-PR|local-only> <task-id> [branch] [<forge>] [<base>]
-  local mode=$1 id=$2 forge=${4:-none} base=${5:-}
-  local branch=${3:-fm/$id} target='the default branch'
+fm_ship_rule_one() {  # <no-mistakes|direct-PR|local-only> <task-id> [branch] [<forge>] [<base>] [<pr>]
+  local mode=$1 id=$2 forge=${4:-none} base=${5:-} pr=${6:-auto}
+  local branch=${3:-fm/$id} target='the default branch' batch_exception=''
   fm_forge_valid_for_mode "$forge" "$mode" fm_ship_rule_one || return 1
   fm_base_branch_valid "$base" "$mode" "$forge" fm_ship_rule_one || return 1
   [ -z "$base" ] || target="the base branch \`$base\` or the default branch"
@@ -295,15 +311,19 @@ fm_ship_rule_one() {  # <no-mistakes|direct-PR|local-only> <task-id> [branch] [<
     printf '\n'
     return 0
   fi
+  if [ "$pr" = batch ]; then
+    fm_pr_text_valid "$pr" "$mode" "$forge" fm_ship_rule_one || return 1
+    batch_exception=" The one exception is \`scripts/batch.sh ship\`, which your Definition of done has you run: it pushes the project's batch branch, opens or extends the shared batch PR, and may arm its auto-merge under the project's own setting. Never push to a batch branch, or open, edit, merge, or close a batch PR, any other way."
+  fi
   case "$mode" in
     direct-PR)
-      printf '%s\n' "1. Never push to $target (push only your \`$branch\` branch). Never merge a PR."
+      printf '%s\n' "1. Never push to $target (push only your \`$branch\` branch). Never merge a PR.$batch_exception"
       ;;
     local-only)
       printf '%s\n' "1. Never push to any remote and never open a PR. Work only on your \`$branch\` branch; firstmate handles the merge into local \`main\`."
       ;;
     no-mistakes)
-      printf '%s\n' "1. Never push to $target. Never merge a PR."
+      printf '%s\n' "1. Never push to $target. Never merge a PR.$batch_exception"
       ;;
     *)
       echo "error: fm_ship_rule_one: unknown delivery mode '$mode'" >&2
@@ -535,9 +555,46 @@ If you deliberately keep the PR a draft, append \`paused [at=<epoch>]: {why the 
 EOF
 }
 
+# How a worker on a pr=batch project ships its pushed branch through the
+# project's own scripts/batch.sh, shared by both publishing modes. The project
+# batches every finished branch into one pull request at a time: `ship` merges
+# each branch that passed the light per-branch check into the open batch (a
+# fix cut from it) or into a new batch when none is open, and otherwise leaves
+# it for the next batch. A batched branch is never rewritten, a queued branch
+# declares a wait instead of failing, and a failing batch is fixed forward by a
+# separate task, so the worker stops at both and firstmate resumes it (the
+# ship-landing skill owns that supervision). The ready report is the ordinary
+# CI-ready `done: PR <url> checks green` naming the shared batch pull request,
+# so registration, the merge poll, merge authority, and the landed-work test
+# treat it like any pull request; several tasks may record the same one.
+# <update> is how this mode brings new commits on the branch to the forge.
+fm_dod_batch_ship_steps() {  # <branch> <update> <up-to-date-ref-words>
+  local branch=$1 update=$2 uptodate=$3
+  cat <<EOF
+Ship the pushed branch into a batch with the project's own \`scripts/batch.sh\`, run from this copy; its header explains the batching.
+Until \`scripts/batch.sh ship\` takes \`$branch\` into a batch it is still yours to fix. From that moment never rewrite it - no rebase, amend, reset, or force-push - because a batch merges each branch exactly as it was pushed.
+1. Wait for the project's per-branch check on your pushed head: find its run, the newest one for your head commit in \`gh run list --branch $branch --limit 5\`, and watch it with \`gh run watch <id> --exit-status\`, under the ten-minute command limit as the driving rules bound every wait, re-running the watch while it is still in progress.
+   Then run \`scripts/batch.sh status\` and find \`$branch\`. If it is still listed as waiting for that check, watch again.
+   If it is listed as failed, read the failed run with \`gh run view <id> --log-failed\`, commit the fix on your branch, $update, and wait again.
+2. Run \`scripts/batch.sh ship\`. It is idempotent: when it reports that another ship is running, run \`scripts/batch.sh status\` once more and then \`ship\` again.
+   When it reports that \`$branch\` conflicts with the batch, merge $uptodate into your branch (\`git fetch origin\` first), resolve the conflict, $update, and go back to step 1.
+3. Run \`scripts/batch.sh status\` again and find \`$branch\`:
+   - Under "in the open batch": the open batch PR carries your branch. Read its URL from \`gh-axi pr view <number>\`, with the number the status printed, and go to step 4.
+   - Under "ready for the next batch": another batch is open and your branch waits for the next one, which is a normal outcome, not a failure. Append \`paused [at=<epoch>]: queued for the next batch behind PR {open batch PR url}\` and stop. When that PR merges or closes, firstmate tells you to resume, and you continue at step 2, which opens the next batch with your branch in it.
+   - Under "fixes, joining the open batch at the next ship", or still waiting for the per-branch check: go back to step 1.
+4. Wait for the batch PR's checks with \`gh-axi pr checks <number> --watch\`, under the ten-minute command limit as the driving rules bound every wait, and run the same command again whenever it returns with checks still pending. The project may merge a green batch on its own; a merged batch PR counts as green.
+   - When its checks are green or it has merged, append \`done [at=<epoch>]: PR {batch PR url} checks green\` and stop. You are finished. Other tasks may report the same batch PR; firstmate tracks each against it, and they land together when it merges.
+     That \`done:\` is accepted only when this copy's HEAD - your latest commit - is the pushed head of \`$branch\`, so commit nothing after shipping.
+   - When a check fails, do not fix it on your branch, which the batch already carries. Append \`blocked [at=<epoch>]: batch PR {url} failed {check}: {one-line cause from its log}; needs a fix-forward branch cut from scripts/batch.sh base\` and stop. Firstmate dispatches the fix as a separate task whose branch joins this batch, then tells you to resume at step 4.
+   - When it closes without merging, go back to step 2.
+Never run a \`scripts/batch.sh\` subcommand other than \`status\`, \`ship\`, and \`base\`.
+EOF
+}
+
 fm_dod_block() {  # <mode> <task-id> [branch] [<forge>] [<base>] [<consent>] [<pr>]
   local mode=$1 id=$2 forge=${4:-none} base=${5:-} consent=${6:-} pr=${7:-auto}
   local branch=${3:-fm/$id} pr_base='' nm_base='' base_q contract_forge='' contract_consent='' forge_cli=gh-axi draft_check adapter
+  local batch_uptodate="origin's default branch (\`origin/<default>\`)"
   fm_forge_valid_for_mode "$forge" "$mode" fm_dod_block || return 1
   fm_base_branch_valid "$base" "$mode" "$forge" fm_dod_block || return 1
   fm_pr_text_valid "$pr" "$mode" "$forge" fm_dod_block || return 1
@@ -559,6 +616,7 @@ fm_dod_block() {  # <mode> <task-id> [branch] [<forge>] [<base>] [<consent>] [<p
     pr_base=", against the base branch \`$base\` (\`--base $base_q\`), not the repository default"
     nm_base="This task's base branch is \`$base\`, not the repository default: pass \`--base-branch $base_q\` on every \`no-mistakes axi run\` that starts a run, so the pipeline rebases onto, opens its PR against, and watches CI for that branch.
 "
+    batch_uptodate="\`origin/$base\`"
   fi
   case "$mode:$forge" in
     direct-PR:gerrit)
@@ -639,6 +697,21 @@ EOF
       printf '%s\n' "$adapter"
       ;;
     direct-PR:*)
+      if [ "$pr" = batch ]; then
+        cat <<EOF
+# Definition of done
+Delivery contract: mode=direct-PR$contract_consent pr=batch
+Ship branch: $branch
+This task ships **direct-PR** without the no-mistakes pipeline into a project that batches its finished branches into one PR at a time, so you push your branch and its batch, not you, opens the PR.
+The task is complete only when committed on your branch.
+When it is implemented and committed, push your branch (\`git push origin HEAD:refs/heads/$branch\`) and open no PR.
+EOF
+        fm_dod_batch_ship_steps "$branch" "push the branch again" "$batch_uptodate"
+        cat <<EOF
+Do NOT run /no-mistakes. The configured merge authority decides whether to merge the batch PR; firstmate relays the outcome.
+EOF
+        return
+      fi
       cat <<EOF
 # Definition of done
 Delivery contract: mode=direct-PR$contract_forge$contract_consent
@@ -672,6 +745,29 @@ EOF
         [ -z "$nm_base" ] || nm_base="This task's base branch is \`$base\`, not the repository default: pass \`--base-branch $base_q\` on every \`no-mistakes axi run\` that starts a run, so the pipeline rebases onto that branch, and open the PR against it with \`--base $base_q\`.
 "
         fm_dod_manual_pr_block "$branch" "$forge_cli" "$draft_check" "$contract_forge$contract_consent" "$nm_base" "$pr_base"
+        return
+      fi
+      if [ "$pr" = batch ]; then
+        [ -z "$nm_base" ] || nm_base="This task's base branch is \`$base\`, not the repository default: pass \`--base-branch $base_q\` on every \`no-mistakes axi run\` that starts a run, so the pipeline rebases onto that branch.
+"
+        cat <<EOF
+# Definition of done
+Delivery contract: mode=no-mistakes$contract_consent pr=batch
+Ship branch: $branch
+This project batches its finished branches into one PR at a time with its own \`scripts/batch.sh\`, so **no-mistakes runs here as a validation pass that pushes the branch**, and the batch, not the pipeline, opens the PR.
+Pass \`--skip pr,ci\` on every \`no-mistakes axi run\` for this task, and skip nothing else: \`review\`, \`test\`, \`document\`, \`lint\`, and \`push\` still run, and \`ci\` has no pipeline-opened PR to watch.
+The task is complete only when committed on your branch.
+When you believe it is complete, append \`done [at=<epoch>]: {summary}\` to the status file and stop.
+Firstmate will then instruct you to run /no-mistakes to validate and push.
+That first \`done:\` is the handoff that starts the pipeline, which owns the push; it is not a request to push from this copy.
+${nm_base}
+EOF
+        fm_nm_driving_block no-ci
+        cat <<EOF
+
+When the run's outcome is passed, passed-with-skips, or passed-with-override, its push step has put your validated branch on the forge.
+EOF
+        fm_dod_batch_ship_steps "$branch" "drive a new run with the same \`--skip pr,ci\`, which pushes it" "$batch_uptodate"
         return
       fi
       cat <<EOF

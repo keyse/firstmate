@@ -17,10 +17,10 @@
 #   refuses a brief whose `forge=` disagrees with the registered binding in
 #   either direction, and refuses --yolo on for a forge=gerrit or
 #   forge=external project, where yolo is inactive (bin/fm-project-mode.sh's
-#   header carries that decision). The project's pr=manual binding is read the
-#   same way and agrees with the brief's " pr=manual" contract suffix in either
-#   direction; only a no-mistakes ship takes it, so a no-mistakes-prod-only
-#   project's direct-PR task expects none. A forge=external ship also refuses a missing
+#   header carries that decision). The project's pr= binding is read the
+#   same way and agrees with the brief's " pr=<value>" contract suffix in either
+#   direction; only a no-mistakes ship takes pr=manual, so a no-mistakes-prod-only
+#   project's direct-PR task expects none, while pr=batch binds direct-PR too. A forge=external ship also refuses a missing
 #   review tool adapter and an unusable personal backup remote, installs the
 #   per-task pre-push guard (bin/fm-git-push-guard.sh) even when the home keeps
 #   AI trailers, and records forge=external, backup_remote=, and backup_prefix=
@@ -4478,15 +4478,21 @@ if [ "$KIND" = ship ]; then
   fi
   # The registered PR-text binding is read the same way: a brief that disagrees
   # would hand the pipeline's pr step the text a person owns, or the worker text
-  # the pipeline owns. direct-PR already leaves the text to the worker, so a
-  # conditional-policy project's direct-PR task expects none.
+  # the pipeline owns, or open a per-task PR on a project that batches. direct-PR
+  # already leaves the text to the worker, so a conditional-policy project's
+  # direct-PR task expects no pr=manual.
   if ! STANDING_PR=$("$FM_ROOT/bin/fm-project-mode.sh" --pr "$PROJ_NAME" 2>/dev/null); then
     "$FM_ROOT/bin/fm-project-mode.sh" --pr "$PROJ_NAME" >/dev/null || true
     echo "error: $ID cannot launch: the registry entry for $PROJ_NAME does not resolve to a delivery posture (see the refusal above); correct data/projects.md and spawn again" >&2
     exit 1
   fi
   [ -n "$STANDING_PR" ] || STANDING_PR=auto
-  [ "$MODE" = no-mistakes ] || STANDING_PR=auto
+  # pr=batch binds both publishing modes, because every branch of a batching
+  # project reaches main through a batch; pr=manual binds a no-mistakes ship only.
+  case "$STANDING_PR:$MODE" in
+    manual:no-mistakes|batch:no-mistakes|batch:direct-PR) ;;
+    *) STANDING_PR=auto ;;
+  esac
   BRIEF_PR=$(sed -n 's/^Delivery contract: mode=[^ ]*.*[[:space:]]pr=\([^ ]*\).*$/\1/p' "$BRIEF" | head -n 1)
   [ -n "$BRIEF_PR" ] || BRIEF_PR=auto
   if [ "$BRIEF_PR" != "$STANDING_PR" ]; then

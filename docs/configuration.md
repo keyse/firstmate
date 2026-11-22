@@ -2388,15 +2388,29 @@ A GitLab project needs no forge token, only `glab` on `PATH`, authenticated via 
 A project whose reviews are created by a review tool that uploads its own snapshot of the worker's commits is registered `[direct-PR forge=external]`; it is never detected, ships `direct-PR` only, carries no yolo, and needs the [external review tool](#external-review-tool-configexternal-reviewmd-configexternal-review-url-configexternal-review-backup) configuration below.
 [`docs/external-review-forge.md`](external-review-forge.md) is the design.
 
-## PR text selection (data/projects.md pr= token)
+## PR posture selection (data/projects.md pr= token)
 
-A project with no `pr=` token keeps today's behavior: the no-mistakes pipeline's `pr` step writes the pull request title and body and refreshes them on every validated push.
+A project with no `pr=` token keeps today's behavior: each ship gets its own pull request, and the no-mistakes pipeline's `pr` step writes its title and body and refreshes them on every validated push.
+The token is off by default and read like `forge=`: `bin/fm-project-mode.sh --pr <name>` reads it back, and its header owns the grammar and refusals.
+Firstmate passes it to `bin/fm-brief.sh --pr <value>` at intake the same way it passes `--forge`, `bin/fm-spawn.sh` refuses a brief whose `pr=` disagrees with the registry, and `bin/fm-promote.sh` reads it from the registry.
+
+### pr=manual
+
 A project whose outside maintainer reviews and merges, and whose hand-written PR text the pipeline would overwrite, is registered `[no-mistakes pr=manual]`.
-`pr=manual` is the one accepted value, off by default, read like `forge=`: `bin/fm-project-mode.sh --pr <name>` reads it back, and its header owns the grammar and refusals.
 It applies to a `no-mistakes` ship on a project with no `forge=` binding only, so the registry refuses it on `direct-PR`, which already leaves the PR text to the worker, on `local-only`, which opens no PR, and beside a forge.
-Firstmate passes it to `bin/fm-brief.sh --pr manual` at intake the same way it passes `--forge`, `bin/fm-spawn.sh` refuses a brief whose `pr=` disagrees with the registry, and `bin/fm-promote.sh` reads it from the registry.
 The generated brief then has the worker pass `--skip pr,ci` on every `no-mistakes axi run`, write the PR title and body itself, open or update the PR with `gh-axi`, and wait for the PR's checks; `bin/fm-dod-lib.sh` owns that text.
 The token is the thin registry form of no-mistakes' own keep-text option, [kunchenguid/no-mistakes#1648](https://github.com/kunchenguid/no-mistakes/issues/1648), and is meant to map onto it once that exists.
+
+### pr=batch
+
+A project that batches its finished branches into one pull request at a time, to run its full CI once per batch instead of once per branch, is registered with `pr=batch`, for example `[no-mistakes-prod-only +yolo pr=batch]`.
+The project supplies the batching as `scripts/batch.sh` with `status`, `ship`, and `base` subcommands: every pushed branch gets a light per-branch check, `ship` merges each passing branch into one open batch pull request (or opens the next one when none is open), and a branch cut from the open batch is a fix that joins it.
+Its per-clone git settings name which branches are yours, normally the ship-branch glob such as `batch.branches 'fm/*'`, and, through `batch.automerge`, whether a batch pull request is armed for auto-merge; enable `batch.automerge` only on a `+yolo` project, because it merges batch PRs without firstmate's merge authority.
+The token applies to both publishing modes, `no-mistakes` and `direct-PR`, on a project with no `forge=` binding, and the registry refuses it on `local-only` and beside a forge.
+The generated brief has a `no-mistakes` worker pass `--skip pr,ci` so the pipeline only validates and pushes, and a `direct-PR` worker push its branch without a pull request; either one then runs `scripts/batch.sh ship` and reports `done: PR <batch url> checks green` once the batch pull request that carries its branch is green or merged.
+Several tasks therefore record the same `pr=`, and each lands when that pull request merges; the landed-work test accepts a task branch that the merged batch head contains.
+A worker whose branch must wait for the next batch, or whose batch fails, stops with a declared wait or a blocker, and a failing batch is fixed forward by a separate ship cut from the batch with `--base-branch`, never by rewriting a batched branch.
+`bin/fm-dod-lib.sh` owns the worker's steps and the `ship-landing` skill owns how firstmate resumes those workers.
 
 ## GitHub Enterprise hosts (config/github-hosts)
 

@@ -40,6 +40,11 @@ cat > "$DATA/projects.md" <<'EOF'
 - hand-forgejo [no-mistakes forge=forgejo pr=manual] - a bound forge (added 2026-01-01)
 - hand-empty [no-mistakes pr=] - an empty value (added 2026-01-01)
 - hand-auto [no-mistakes pr=auto] - auto is the absence of the token, not a value (added 2026-01-01)
+- batched [no-mistakes pr=batch] - the project's batch opens the PR (added 2026-01-01)
+- batched-prod [no-mistakes-prod-only +yolo pr=batch] - conditional policy keeps the binding (added 2026-01-01)
+- batched-direct [direct-PR pr=batch] - direct-PR branches are batched too (added 2026-01-01)
+- batched-local [local-only pr=batch] - local-only opens no PR to batch (added 2026-01-01)
+- batched-forgejo [no-mistakes forge=forgejo pr=batch] - a bound forge (added 2026-01-01)
 EOF
 
 run_mode() {
@@ -154,11 +159,36 @@ for name in hand-direct hand-local hand-forgejo hand-empty hand-auto; do
     || fail "--forge refused over the pr token of $name"
 done
 err=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --pr hand-empty 2>&1 >/dev/null)
-assert_contains "$err" "empty PR-text binding" "the empty pr= refusal did not name the empty value"
+assert_contains "$err" "empty PR binding" "the empty pr= refusal did not name the empty value"
 err=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --pr hand-auto 2>&1 >/dev/null)
 assert_contains "$err" "pr=manual" "the unknown pr value refusal did not name the accepted value"
 err=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --pr hand-direct 2>&1 >/dev/null)
 assert_contains "$err" "only a no-mistakes ship takes it" "the direct-PR refusal did not say why"
 pass "fm-project-mode: pr=manual refuses another mode, a bound forge, an empty value, and an unknown value, but leaves --forge answerable"
+
+[ "$(run_pr batched)" = "batch" ] || fail "pr=batch did not resolve: $(run_pr batched)"
+[ "$(run_mode batched)" = "no-mistakes off" ] || fail "pr=batch changed the two-word output: $(run_mode batched)"
+[ "$(run_pr batched-prod)" = "batch" ] || fail "pr=batch on the conditional policy did not resolve: $(run_pr batched-prod)"
+[ "$(run_mode batched-prod)" = "no-mistakes on" ] || fail "pr=batch displaced +yolo: $(run_mode batched-prod)"
+[ "$(run_pr batched-direct)" = "batch" ] || fail "pr=batch on direct-PR did not resolve: $(run_pr batched-direct)"
+[ "$(run_mode batched-direct)" = "direct-PR off" ] || fail "pr=batch changed the direct-PR output: $(run_mode batched-direct)"
+err=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --pr batched-direct 2>&1 >/dev/null)
+[ -z "$err" ] || fail "a registered pr=batch on direct-PR warned: $err"
+pass "fm-project-mode: pr=batch binds no-mistakes, the conditional policy, and direct-PR"
+
+for name in batched-local batched-forgejo; do
+  for flag in "" --pr; do
+    # shellcheck disable=SC2086 # An empty flag must expand to nothing.
+    out=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" $flag "$name" 2>/dev/null)
+    status=$?
+    [ "$status" -eq 3 ] || fail "$name did not refuse${flag:+ under $flag} (status $status, got '$out')"
+    [ -z "$out" ] || fail "a refused $name still handed the caller a posture: '$out'"
+  done
+done
+err=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --pr batched-local 2>&1 >/dev/null)
+assert_contains "$err" "no batch to ship into" "the local-only pr=batch refusal did not say why"
+err=$(FM_DATA_OVERRIDE="$DATA" "$PROJECT_MODE" --pr hand-auto 2>&1 >/dev/null)
+assert_contains "$err" "pr=batch" "the unknown pr value refusal did not name pr=batch"
+pass "fm-project-mode: pr=batch refuses local-only and a bound forge"
 
 echo "# fm-project-mode.test.sh: all assertions passed"
