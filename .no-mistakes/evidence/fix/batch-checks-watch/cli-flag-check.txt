@@ -1,0 +1,38 @@
+$ gh-axi pr checks 1 --watch   (outside any repo)
+error: "unknown flag for gh-axi pr checks: --watch"
+code: VALIDATION_ERROR
+help[2]: "gh-axi pr checks [flags]",gh-axi pr checks --help
+exit=2
+
+$ gh-axi pr checks --help
+usage: gh-axi pr <subcommand> [flags]
+subcommands[15]:
+  list, view <number>, create, edit <number>, close <number>, merge <number>, review <number>, checks <number>, diff <number>, checkout <number>, ready <number>, reopen <number>, comment <number>, update-branch <number>, revert <number>
+flags{list}:
+  --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
+flags{view}:
+  --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
+flags{create}:
+  --title <text> (required), --body <text> or --body-file <path>, --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
+flags{edit}:
+  --title <text>, --body <text> or --body-file <path>, --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
+flags{merge}:
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body <text> or --body-file <path>, --subject
+flags{review}:
+  --approve, --request-changes, --comment, --body <text> or --body-file <path>
+flags{comment}:
+  --body <text> or --body-file <path> (required)
+flags{checks}:
+  (none)
+flags{diff}:
+  --full (show complete diff without truncation)
+examples:
+  gh-axi pr list --state open --label bug
+  gh-axi pr view 42 --comments
+  gh-axi pr view 42 --reviews
+  gh-axi pr comment 42 --body-file review.md
+  gh-axi pr merge 42 --squash --delete-branchexit=0
+
+$ gh pr checks --help | grep -- --watch
+      --watch             Watch checks until they finish
+exit=0

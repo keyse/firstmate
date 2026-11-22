@@ -1,0 +1,10 @@
+$ gh pr checks 15109 --watch -R cli/cli   (a merged public PR, read-only)
+label-external / label_issues	pass	3s	https://github.com/cli/cli/actions/runs/44584003976/job/135771924878	
+lint	pass	2m57s	https://github.com/cli/cli/actions/runs/44584003164/job/135771914673	
+check-requirements / check-requirements	skipping	0	https://github.com/cli/cli/actions/runs/44584003976/job/135771927403	
+check-requirements / close-unmet-requirements	skipping	0	https://github.com/cli/cli/actions/runs/44584003976/job/135771927680	
+close-from-default-branch / close-from-default-branch	skipping	0	https://github.com/cli/cli/actions/runs/44584003976/job/135771927509	
+close-no-help-wanted	skipping	0	https://github.com/cli/cli/actions/runs/44584003976/job/135771927540	
+close-unmet-requirements	skipping	0	https://github.com/cli/cli/actions/runs/44584003976/job/135771927771	
+ready-for-review	skipping	0	https://github.com/cli/cli/actions/runs/44584003976/job/135771927319	
+exit=

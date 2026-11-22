@@ -1,0 +1,23 @@
+=== bin/fm-brief.sh batch-nm proj --mode no-mistakes --pr batch
+exit=0
+--- lines mentioning "pr checks":
+146:4. Wait for the batch PR's checks with `gh pr checks <number> --watch`, under the ten-minute command limit as the driving rules bound every wait, and run the same command again whenever it returns with checks still pending. The project may merge a green batch on its own; a merged batch PR counts as green.
+--- count of "gh-axi pr checks": 0
+=== bin/fm-brief.sh batch-dpr proj --mode direct-PR --pr batch
+exit=0
+--- lines mentioning "pr checks":
+111:4. Wait for the batch PR's checks with `gh pr checks <number> --watch`, under the ten-minute command limit as the driving rules bound every wait, and run the same command again whenever it returns with checks still pending. The project may merge a green batch on its own; a merged batch PR counts as green.
+--- count of "gh-axi pr checks": 0
+=== bin/fm-brief.sh manual-gh proj --mode no-mistakes --pr manual
+exit=0
+--- lines mentioning "pr checks":
+138:4. Wait for the PR's checks with `gh pr checks <number> --watch`, under the ten-minute command limit as the driving block bounds its waits, and run the same command again whenever it returns with checks still pending. `gh pr checks` exits 1 when the project reports no checks at all: that is not a failed check and needs no fix. If a check fails, commit the fix, drive a new run with the same `--skip pr,ci`, and update the PR text if the change affects it.
+--- count of "gh-axi pr checks": 0
+=== bin/fm-brief.sh manual-fj proj --mode no-mistakes --forge forgejo --pr manual
+error: fm-brief.sh --pr: pr=manual ships on a GitHub-style forge with no forge binding only, not forge=forgejo
+exit=1
+cp: /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-brief-ev.GmogJZ/data/manual-fj/brief.md: No such file or directory
+--- lines mentioning "pr checks":
+grep: /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-brief-ev.GmogJZ/data/manual-fj/brief.md: No such file or directory
+grep: /var/folders/zl/jngkp57j2fl0x5_p_m19jgfw0000gn/T//fm-brief-ev.GmogJZ/data/manual-fj/brief.md: No such file or directory
+--- count of "gh-axi pr checks": 

@@ -1,0 +1,12 @@
+### fixed library (HEAD 61b584cc)
+ok - fm-brief: pr=manual records its contract suffix, skips pr and ci, and hands the PR text to the worker
+ok - fm-brief: pr=batch records its contract suffix and ships both publishing modes through the project's batch
+exit=0
+
+### old library (e11d0281) with the new tests
+not ok - the worker was not told how to wait for the PR's checks
+exit=1
+
+### old library (e11d0281), batch test alone
+not ok - the worker was not told how to wait for the batch PR's checks
+exit=1
