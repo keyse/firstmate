@@ -641,7 +641,7 @@ test_pr_manual_brief_hands_the_pr_text_to_the_worker() {
   assert_grep 'gh-axi pr create' "$brief" "the worker was not told to open the PR itself"
   assert_grep 'Never post a comment or review' "$brief" "the worker was not kept from posting comments"
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
-  assert_grep 'gh pr checks <number> --watch' "$brief" "the worker was not told how to wait for the PR's checks"
+  assert_grep 'gh-axi pr checks <number> --watch' "$brief" "the worker was not told how to wait for the PR's checks"
   assert_grep 'done [at=<epoch>]: PR {url} checks green' "$brief" "the CI-green ready report was lost"
   assert_grep 'is one the /no-mistakes run pushed' "$brief" "the named-head rule was lost"
   assert_grep 'ask-user findings are never yours to answer' "$brief" "the ask-user escalation rule was lost"
@@ -1595,9 +1595,6 @@ test_pr_batch_brief_ships_through_the_project_batch() {
   assert_grep 'done [at=<epoch>]: PR {batch PR url} checks green' "$nm" "the CI-ready report does not name the batch PR"
   assert_grep 'ask-user findings are never yours to answer' "$nm" "the ask-user escalation rule was lost"
   assert_no_grep 'gh-axi pr create' "$nm" "the worker was told to open its own PR"
-  # gh-axi has no checks --watch, so the batch PR wait must use plain gh.
-  assert_grep 'gh pr checks <number> --watch' "$nm" "the worker was not told how to wait for the batch PR's checks"
-  assert_no_grep 'gh-axi pr checks' "$nm" "the worker was told to watch checks with a gh-axi flag that does not exist"
 
   FM_HOME="$home" "$BRIEF" pr-batch-b2 proj --mode direct-PR --pr batch >/dev/null \
     || fail "a pr=batch direct-PR brief should scaffold"
