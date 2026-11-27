@@ -582,8 +582,8 @@ EOF
 # treat it like any pull request; several tasks may record the same one.
 # <update> is how this mode brings new commits on the branch to the forge.
 # A project may merge a batch once its required checks pass, so a merged batch
-# is green only when every reported check passed; a merged batch with a failed
-# check is a blocker fixed forward from the default branch, never a done.
+# is green only when every reported check passed or was skipped; a merged batch
+# with a failed or cancelled check is a blocker fixed forward from the default branch, never a done.
 fm_dod_batch_ship_steps() {  # <branch> <update> <up-to-date-ref-words>
   local branch=$1 update=$2 uptodate=$3
   cat <<EOF
@@ -600,7 +600,8 @@ Until \`scripts/batch.sh ship\` takes \`$branch\` into a batch it is still yours
    - Under "fixes, joining the open batch at the next ship", or still waiting for the per-branch check: go back to step 1.
 4. Wait for the batch PR's checks with \`gh-axi pr checks <number> --watch\`, under the ten-minute command limit as the driving rules bound every wait, and run the same command again whenever it returns with checks still pending, whether the batch is open or has merged.
    The project may merge a batch on its own once its required checks pass, while other checks are still pending or have failed, so a merge alone does not make it green: open or merged, the batch is green only when every reported check on it has passed.
-   - When every check has passed, append \`done [at=<epoch>]: PR {batch PR url} checks green\` and stop. You are finished. Other tasks may report the same batch PR; firstmate tracks each against it, and they land together when it merges.
+   A skipped check, a conditional job that did not run, does not count against green. A cancelled check has not passed: handle it exactly like a failed check below.
+   - When every check has passed or was skipped, append \`done [at=<epoch>]: PR {batch PR url} checks green\` and stop. You are finished. Other tasks may report the same batch PR; firstmate tracks each against it, and they land together when it merges.
      That \`done:\` is accepted only when this copy's HEAD - your latest commit - is the pushed head of \`$branch\`, so commit nothing after shipping.
    - When a check fails on the open batch, do not fix it on your branch, which the batch already carries. Append \`blocked [at=<epoch>]: batch PR {url} failed {check}: {one-line cause from its log}; needs a fix-forward branch cut from scripts/batch.sh base\` and stop. Firstmate dispatches the fix as a separate task whose branch joins this batch, then tells you to resume at step 4.
    - When a check failed on a batch that has already merged, never report \`done\`: the batch carried your branch onto the default branch with that check red. Append \`blocked [at=<epoch>]: batch PR {url} merged with {check} failed: {one-line cause from its log}; needs a fix-forward branch cut from the default branch\` and stop. Firstmate dispatches that fix as a separate task.

@@ -1599,6 +1599,8 @@ test_pr_batch_brief_ships_through_the_project_batch() {
   assert_no_grep 'a merged batch PR counts as green' "$nm" "a merged batch still counts as green regardless of its checks"
   assert_grep 'open or merged, the batch is green only when every reported check on it has passed' "$nm" \
     "a merged batch is not held to every reported check"
+  assert_grep 'A cancelled check has not passed: handle it exactly like a failed check below.' "$nm" \
+    "a cancelled batch check has no branch and may be read as green"
   assert_grep 'blocked [at=<epoch>]: batch PR {url} merged with {check} failed' "$nm" \
     "a batch that merged with a failed check is not reported as a blocker"
   assert_grep 'needs a fix-forward branch cut from the default branch' "$nm" "a merged failing batch is not fixed forward from the default branch"
