@@ -392,6 +392,36 @@ test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint() {
   pass "fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree"
 }
 
+# A lane relaunched after its PR was recorded keeps that PR as its record's
+# tail, so the armed merge poll still validates against it.
+test_relaunch_keeps_a_recorded_pr_valid_for_the_merge_poll() {
+  local dir out rc url=https://github.com/example/repo/pull/7 check
+  dir=$(new_case keeps-pr rl44)
+  add_ship_task "$dir" rl44 claude
+  cat > "$dir/fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  *headRefOid*) printf '%s\n' 0123456789abcdef0123456789abcdef01234567 ;;
+  *isDraft*) printf '%s\n' '{"isDraft":false}' ;;
+  *state*) printf '%s\n' MERGED ;;
+  *) exit 2 ;;
+esac
+SH
+  chmod +x "$dir/fakebin/gh"
+  out=$(env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" \
+    FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-pr-check.sh" rl44 "$url" 2>&1); rc=$?
+  expect_code 0 "$rc" "the executable merge-poll registration should succeed"$'\n'"$out"
+  check="$dir/home/state/rl44.check.sh"
+  [ -f "$check" ] || fail "fm-pr-check did not arm the merge poll: $out"
+
+  out=$(run_control "$dir" rl44 relaunch --note "address review"); rc=$?
+  expect_code 0 "$rc" "a relaunch of a lane with a recorded PR should succeed"$'\\n'"$out"
+  [ -n "$(meta_field "$dir" rl44 control_relaunch_tx)" ] || fail "the relaunch transaction id was not recorded"
+  out=$(env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" bash "$check")
+  [ "$out" = merged ] || fail "the armed merge poll stopped accepting the relaunched record: '$out'"
+  pass "fm-control relaunch: a recorded PR stays valid to the armed merge poll"
+}
+
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text() {
   local dir out rc
   dir=$(new_case pending-exit rl43)
@@ -1125,7 +1155,7 @@ test_account_list_relaunch_refusals_happen_before_stop() {
         needle="account '$dir/retired' is not declared in config/claude-accounts" ;;
       wrong-harness)
         flag=(--harness codex --account "$dir/second")
-        needle="applies to Claude workers only, not codex" ;;
+        needle="needs config/codex-accounts, which this home does not declare" ;;
     esac
     add_listed_task "$dir" "$id" "$recorded"
     cp "$dir/home/state/$id.meta" "$dir/meta-before"
@@ -1137,6 +1167,47 @@ test_account_list_relaunch_refusals_happen_before_stop() {
     cmp -s "$dir/meta-before" "$dir/home/state/$id.meta" || fail "the $case_name refusal must leave the task record untouched"
   done
   pass "fm-control relaunch: undeclared, newline-split, signed-out, unrecorded, retired, and wrong-runner accounts refuse before the old agent stops"
+}
+
+make_codex_auth_stub() {  # <case-dir>
+  cat > "$1/fakebin/codex" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" = login ] && [ "${2:-}" = status ] || exit 0
+[ -f "${CODEX_HOME:-$HOME/.codex}/auth.json" ]
+SH
+  chmod +x "$1/fakebin/codex"
+}
+
+test_codex_account_list_relaunch_keeps_or_moves_the_recorded_account() {
+  local dir out rc id=rl-codex-list
+  dir=$(new_case codex-list "$id")
+  add_ship_task "$dir" "$id" codex
+  printf 'codex' > "$dir/fake/command"
+  printf 'codex' > "$dir/fake/becomes"
+  make_codex_auth_stub "$dir"
+  mkdir -p "$dir/home/config" "$dir/first" "$dir/second" "$dir/signed-out"
+  : > "$dir/first/auth.json"
+  : > "$dir/second/auth.json"
+  printf '%s\n' "$dir/first" "$dir/second" "$dir/signed-out" > "$dir/home/config/codex-accounts"
+  echo "account=$dir/first" >> "$dir/home/state/$id.meta"
+  out=$(run_control "$dir" "$id" relaunch --note "same account"); rc=$?
+  expect_code 0 "$rc" "a Codex relaunch under a list should reuse the recorded account"$'\n'"$out"
+  [ "$(meta_field "$dir" "$id" account)" = "$dir/first" ] || fail "the relaunched record should keep the recorded Codex account"
+  assert_contains "$(cat "$dir/fake/literal")" "CODEX_HOME='$dir/first'" \
+    "the replacement should launch under the recorded Codex home"
+  : > "$dir/fake/literal"
+  cp "$dir/home/state/$id.meta" "$dir/meta-before"
+  out=$(run_control "$dir" "$id" relaunch --account "$dir/signed-out" --note "refuse"); rc=$?
+  expect_code 1 "$rc" "a signed-out Codex account must refuse"$'\n'"$out"
+  assert_contains "$out" "config/codex-accounts pins Codex workers to $dir/signed-out, which is not signed in" "the refusal should say why"
+  [ "$(cat "$dir/fake/command")" = codex ] || fail "the refusal must happen before the running agent stops"
+  cmp -s "$dir/meta-before" "$dir/home/state/$id.meta" || fail "the refusal must leave the task record untouched"
+  out=$(run_control "$dir" "$id" relaunch --account "$dir/second" --note "first is exhausted"); rc=$?
+  expect_code 0 "$rc" "an explicit --account relaunch should move the Codex task"$'\n'"$out"
+  [ "$(meta_field "$dir" "$id" account)" = "$dir/second" ] || fail "the relaunched record should name the new Codex account"
+  assert_contains "$(cat "$dir/fake/literal")" "CODEX_HOME='$dir/second'" \
+    "the replacement should launch under the explicitly chosen Codex home"
+  pass "fm-control relaunch: a Codex task keeps its recorded account, refuses a signed-out one before stopping, and moves only on --account"
 }
 
 test_secondmate_account_pin_follows_relaunch_and_refuses_before_stop() {
@@ -3224,6 +3295,7 @@ test_relaunch_off_opencode_removes_tracked_wiring
 test_exit_and_relaunch_remove_the_dialog_file
 test_exit_removes_the_dialog_file_before_releasing_the_lock
 test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint
+test_relaunch_keeps_a_recorded_pr_valid_for_the_merge_poll
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text
 test_relaunch_refuses_before_exit_when_the_composer_state_is_unproven
 test_relaunch_from_linked_home_preserves_recorded_worktree
@@ -3250,6 +3322,7 @@ test_worker_account_pin_follows_the_relaunch
 test_account_list_relaunch_reuses_the_recorded_account
 test_account_list_relaunch_moves_only_on_explicit_account
 test_account_list_relaunch_refusals_happen_before_stop
+test_codex_account_list_relaunch_keeps_or_moves_the_recorded_account
 test_secondmate_account_pin_follows_relaunch_and_refuses_before_stop
 test_pi_exclude_tools_follow_the_relaunch
 test_claude_exclude_tools_follow_the_relaunch
