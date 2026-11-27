@@ -559,6 +559,15 @@ If you deliberately keep the PR a draft, append \`paused [at=<epoch>]: {why the 
 EOF
 }
 
+# The batch PR's description is assembled from its branches' commit messages,
+# so an issue a branch fixes closes only when that branch's own commit message
+# says so before it is pushed.
+fm_dod_batch_closes_line() {
+  cat <<'EOF'
+The batch PR's description is built from each batched branch's commit messages, so when your work fixes an issue, put one `Closes #N` line per fixed issue in the body of your commit message before the branch is pushed; a branch that fixes no issue carries none.
+EOF
+}
+
 # How a worker on a pr=batch project ships its pushed branch through the
 # project's own scripts/batch.sh, shared by both publishing modes. The project
 # batches every finished branch into one pull request at a time: `ship` merges
@@ -572,6 +581,9 @@ EOF
 # so registration, the merge poll, merge authority, and the landed-work test
 # treat it like any pull request; several tasks may record the same one.
 # <update> is how this mode brings new commits on the branch to the forge.
+# A project may merge a batch once its required checks pass, so a merged batch
+# is green only when every reported check passed or was skipped; a merged batch
+# with a failed or cancelled check is a blocker fixed forward from the default branch, never a done.
 fm_dod_batch_ship_steps() {  # <branch> <update> <up-to-date-ref-words>
   local branch=$1 update=$2 uptodate=$3
   cat <<EOF
@@ -586,10 +598,13 @@ Until \`scripts/batch.sh ship\` takes \`$branch\` into a batch it is still yours
    - Under "in the open batch": the open batch PR carries your branch. Read its URL from \`gh-axi pr view <number>\`, with the number the status printed, and go to step 4.
    - Under "ready for the next batch": another batch is open and your branch waits for the next one, which is a normal outcome, not a failure. Append \`paused [at=<epoch>]: queued for the next batch behind PR {open batch PR url}\` and stop. When that PR merges or closes, firstmate tells you to resume, and you continue at step 2, which opens the next batch with your branch in it.
    - Under "fixes, joining the open batch at the next ship", or still waiting for the per-branch check: go back to step 1.
-4. Wait for the batch PR's checks with \`gh-axi pr checks <number> --watch\`, under the ten-minute command limit as the driving rules bound every wait, and run the same command again whenever it returns with checks still pending. The project may merge a green batch on its own; a merged batch PR counts as green.
-   - When its checks are green or it has merged, append \`done [at=<epoch>]: PR {batch PR url} checks green\` and stop. You are finished. Other tasks may report the same batch PR; firstmate tracks each against it, and they land together when it merges.
+4. Wait for the batch PR's checks with \`gh-axi pr checks <number> --watch\`, under the ten-minute command limit as the driving rules bound every wait, and run the same command again whenever it returns with checks still pending, whether the batch is open or has merged.
+   The project may merge a batch on its own once its required checks pass, while other checks are still pending or have failed, so a merge alone does not make it green: open or merged, the batch is green only when every reported check on it has passed.
+   A skipped check, a conditional job that did not run, does not count against green. A cancelled check has not passed: handle it exactly like a failed check below.
+   - When every check has passed or was skipped, append \`done [at=<epoch>]: PR {batch PR url} checks green\` and stop. You are finished. Other tasks may report the same batch PR; firstmate tracks each against it, and they land together when it merges.
      That \`done:\` is accepted only when this copy's HEAD - your latest commit - is the pushed head of \`$branch\`, so commit nothing after shipping.
-   - When a check fails, do not fix it on your branch, which the batch already carries. Append \`blocked [at=<epoch>]: batch PR {url} failed {check}: {one-line cause from its log}; needs a fix-forward branch cut from scripts/batch.sh base\` and stop. Firstmate dispatches the fix as a separate task whose branch joins this batch, then tells you to resume at step 4.
+   - When a check fails on the open batch, do not fix it on your branch, which the batch already carries. Append \`blocked [at=<epoch>]: batch PR {url} failed {check}: {one-line cause from its log}; needs a fix-forward branch cut from scripts/batch.sh base\` and stop. Firstmate dispatches the fix as a separate task whose branch joins this batch, then tells you to resume at step 4.
+   - When a check failed on a batch that has already merged, never report \`done\`: the batch carried your branch onto the default branch with that check red. Append \`blocked [at=<epoch>]: batch PR {url} merged with {check} failed: {one-line cause from its log}; needs a fix-forward branch cut from the default branch\` and stop. Firstmate dispatches that fix as a separate task.
    - When it closes without merging, go back to step 2.
 Never run a \`scripts/batch.sh\` subcommand other than \`status\`, \`ship\`, and \`base\`.
 EOF
@@ -708,6 +723,9 @@ Delivery contract: mode=direct-PR$contract_consent pr=batch
 Ship branch: $branch
 This task ships **direct-PR** without the no-mistakes pipeline into a project that batches its finished branches into one PR at a time, so you push your branch and its batch, not you, opens the PR.
 The task is complete only when committed on your branch.
+EOF
+        fm_dod_batch_closes_line
+        cat <<EOF
 When it is implemented and committed, push your branch (\`git push origin HEAD:refs/heads/$branch\`) and open no PR.
 EOF
         fm_dod_batch_ship_steps "$branch" "push the branch again" "$batch_uptodate"
@@ -760,6 +778,9 @@ Delivery contract: mode=no-mistakes$contract_consent pr=batch
 Ship branch: $branch
 This project batches its finished branches into one PR at a time with its own \`scripts/batch.sh\`, so **no-mistakes runs here as a validation pass that pushes the branch**, and the batch, not the pipeline, opens the PR.
 Pass \`--skip pr,ci\` on every \`no-mistakes axi run\` for this task, and skip nothing else: \`review\`, \`test\`, \`document\`, \`lint\`, and \`push\` still run, and \`ci\` has no pipeline-opened PR to watch.
+EOF
+        fm_dod_batch_closes_line
+        cat <<EOF
 The task is complete only when committed on your branch.
 When you believe it is complete, append \`done [at=<epoch>]: {summary}\` to the status file and stop.
 Firstmate will then instruct you to run /no-mistakes to validate and push.

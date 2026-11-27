@@ -1593,6 +1593,17 @@ test_pr_batch_brief_ships_through_the_project_batch() {
   assert_grep 'paused [at=<epoch>]: queued for the next batch behind PR' "$nm" "a queued branch is not a declared wait"
   assert_grep 'needs a fix-forward branch cut from scripts/batch.sh base' "$nm" "a failing batch is not fixed forward"
   assert_grep 'done [at=<epoch>]: PR {batch PR url} checks green' "$nm" "the CI-ready report does not name the batch PR"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  assert_grep 'put one `Closes #N` line per fixed issue in the body of your commit message before the branch is pushed' "$nm" \
+    "the worker was not told to close its fixed issues from the commit message the batch PR body is built from"
+  assert_no_grep 'a merged batch PR counts as green' "$nm" "a merged batch still counts as green regardless of its checks"
+  assert_grep 'open or merged, the batch is green only when every reported check on it has passed' "$nm" \
+    "a merged batch is not held to every reported check"
+  assert_grep 'A cancelled check has not passed: handle it exactly like a failed check below.' "$nm" \
+    "a cancelled batch check has no branch and may be read as green"
+  assert_grep 'blocked [at=<epoch>]: batch PR {url} merged with {check} failed' "$nm" \
+    "a batch that merged with a failed check is not reported as a blocker"
+  assert_grep 'needs a fix-forward branch cut from the default branch' "$nm" "a merged failing batch is not fixed forward from the default branch"
   assert_grep 'ask-user findings are never yours to answer' "$nm" "the ask-user escalation rule was lost"
   assert_no_grep 'gh-axi pr create' "$nm" "the worker was told to open its own PR"
 
@@ -1605,6 +1616,11 @@ test_pr_batch_brief_ships_through_the_project_batch() {
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
   assert_grep 'Run `scripts/batch.sh ship`' "$direct" "the direct-PR worker was not told to ship into a batch"
   assert_grep 'Do NOT run /no-mistakes' "$direct" "the direct-PR worker may run the pipeline"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  assert_grep 'put one `Closes #N` line per fixed issue in the body of your commit message before the branch is pushed' "$direct" \
+    "the direct-PR worker was not told to close its fixed issues from its commit message"
+  assert_grep 'blocked [at=<epoch>]: batch PR {url} merged with {check} failed' "$direct" \
+    "the direct-PR worker may report a batch that merged with a failed check as done"
 
   # A fix-forward task starts from the open batch branch and rebases onto it.
   FM_HOME="$home" "$BRIEF" pr-batch-b3 proj --mode no-mistakes --pr batch --base-branch batch/me/1 >/dev/null \
